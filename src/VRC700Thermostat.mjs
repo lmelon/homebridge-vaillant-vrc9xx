@@ -1,4 +1,4 @@
-const _ = require('lodash');
+import _ from 'lodash';
 const QUICK_MODES = ["Party", "Day in", "Day out"];
 
 let Accessory, Characteristic, Service;
@@ -11,17 +11,102 @@ class VRC700Thermostat {
         Characteristic = api.hap.Characteristic;
         Service = api.hap.Service;
 
-        var dispCelsius = Characteristic.TemperatureDisplayUnits.CELSIUS;
-        var dispFahrenheit = Characteristic.TemperatureDisplayUnits.FAHRENHEIT;
-
-        //Generic Config.
+        //Homebridge Config.
         this.log = log;
         this.name = config.name || "VRC700";
         this.manufacturer = "Vaillant";
         this.model = "Homebridge VRC700";
         this.serial_number = config.serial_number || "UNKNOWN";
 
-        //Specific config.
+        // state
+        this.currentOutsideTemperature = 4;
+        this.quickModeSwitches = _.zipObject(QUICK_MODES, QUICK_MODES.map(() => {return { value: false }}));
+
+        // services
+        this._services = this.createServices();
+    }
+
+    getServices() {
+        return this._services;
+    }
+
+    createServices() {
+        const services = [
+            this.getAccessoryInformationService(),
+            this.getBridgingStateService(),
+            //this.createRegulatorService(),
+            ...this.getSensors(),
+            ...this.getQuickActionsSwitches()
+        ];
+
+        return services;
+    }
+
+    getQuickActionsSwitches() {
+
+        var switches = []; 
+        QUICK_MODES.forEach(item => {
+            var swi = new Service.Switch(item, item);
+            swi
+                .getCharacteristic(Characteristic.On)
+                .on('set', (value, callback) => { this.setQuickMode(item, value, callback) })
+                .updateValue(false)
+        
+            switches.push(swi);
+            this.quickModeSwitches[item].service = swi;
+        })
+
+        return switches;
+    }
+
+    getCurrentOutsideTemperature(callback) {
+        this.log('Getting Current Outside Temperature');
+        return callback(null, this.currentOutsideTemperature);
+    }
+
+    getSensors() {
+
+        var outsideSensor = new Service.TemperatureSensor("Outside Temp")
+        outsideSensor
+            .setCharacteristic(Characteristic.Name, "Outside Temp")
+            .getCharacteristic(Characteristic.CurrentTemperature)
+            .on('get', this.getCurrentOutsideTemperature.bind(this));
+
+        return [outsideSensor]
+
+    }
+
+    getAccessoryInformationService() {
+        return new Service.AccessoryInformation()
+            .setCharacteristic(Characteristic.Name, this.name)
+            .setCharacteristic(Characteristic.Manufacturer, this.manufacturer)
+            .setCharacteristic(Characteristic.Model, this.model)
+            .setCharacteristic(Characteristic.SerialNumber, this.serial_number)
+            .setCharacteristic(Characteristic.FirmwareRevision, this.version)
+            .setCharacteristic(Characteristic.HardwareRevision, this.version);
+    }
+
+    getBridgingStateService() {
+        var bridgingStateService = new Service.BridgingState()
+            .setCharacteristic(Characteristic.Reachable, true)
+            .setCharacteristic(Characteristic.LinkQuality, 4)
+            .setCharacteristic(Characteristic.AccessoryIdentifier, this.name)
+            .setCharacteristic(Characteristic.Category, Accessory.Categories.SWITCH);
+
+        return bridgingStateService;
+    }
+
+
+
+    
+
+};
+
+class VRC700Regulator {
+
+    constructor() {
+
+        //State
         this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.OFF;
         this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.OFF;
         this.CurrentTemperature = 20;
@@ -30,15 +115,6 @@ class VRC700Thermostat {
         this.CoolingThresholdTemperature = 25;
         this.HeatingThresholdTemperature = 20;
 
-        this.currentOutsideTemperature = 4;
-
-        this.quickModeSwitches = _.zipObject(QUICK_MODES, QUICK_MODES.map(() => {return { value: false }}));
-
-        this._services = this.createServices();
-    }
-
-    getServices() {
-        return this._services;
     }
 
     cToF(value) {
@@ -102,6 +178,8 @@ class VRC700Thermostat {
         } else if (value == Characteristic.TargetHeatingCoolingState.COOL) {
             //this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.COOL;
             //tarState = 2;
+
+
             return callback(value + " state unsupported");
         } else if (value == Characteristic.TargetHeatingCoolingState.AUTO) {
             this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.AUTO;
@@ -207,11 +285,6 @@ class VRC700Thermostat {
         return callback(error);
     }
 
-    getCurrentOutsideTemperature(callback) {
-        this.log('Getting Current Outside Temperature');
-        return callback(null, this.currentOutsideTemperature);
-    }
-
     setQuickMode(mode, value, callback) {
         this.log('Setting Current mode: ', mode, value);
 
@@ -232,111 +305,48 @@ class VRC700Thermostat {
         return callback(error, this.name);
     }
 
-    createServices() {
-        const services = [
-            this.getAccessoryInformationService(),
-            this.getBridgingStateService(),
-            this.getThermostatService(),
-            ...this.getSensors(),
-            ...this.getQuickActionsSwitches()
-        ];
+    createRegulatorService(subtype) {
 
-        return services;
-    }
+        var regulator = new Service.Thermostat(this.name, subtype);
 
-    getQuickActionsSwitches() {
-
-        var switches = []; 
-        QUICK_MODES.forEach(item => {
-            var swi = new Service.Switch(item, item);
-            swi
-                .getCharacteristic(Characteristic.On)
-                .on('set', (value, callback) => { this.setQuickMode(item, value, callback) })
-                .updateValue(false)
-        
-            switches.push(swi);
-            this.quickModeSwitches[item].service = swi;
-        })
-
-        return switches;
-    }
-
-    getSensors() {
-
-        var outsideSensor = new Service.TemperatureSensor("Outside Temp")
-        outsideSensor
-            .setCharacteristic(Characteristic.Name, "Outside Temp")
-            .getCharacteristic(Characteristic.CurrentTemperature)
-            .on('get', this.getCurrentOutsideTemperature.bind(this));
-
-        return [outsideSensor]
-
-    }
-
-    getAccessoryInformationService() {
-        return new Service.AccessoryInformation()
-            .setCharacteristic(Characteristic.Name, this.name)
-            .setCharacteristic(Characteristic.Manufacturer, this.manufacturer)
-            .setCharacteristic(Characteristic.Model, this.model)
-            .setCharacteristic(Characteristic.SerialNumber, this.serial_number)
-            .setCharacteristic(Characteristic.FirmwareRevision, this.version)
-            .setCharacteristic(Characteristic.HardwareRevision, this.version);
-    }
-
-    getBridgingStateService() {
-        var bridgingStateService = new Service.BridgingState()
-            .setCharacteristic(Characteristic.Reachable, true)
-            .setCharacteristic(Characteristic.LinkQuality, 4)
-            .setCharacteristic(Characteristic.AccessoryIdentifier, this.name)
-            .setCharacteristic(Characteristic.Category, Accessory.Categories.SWITCH);
-
-        return bridgingStateService;
-    }
-
-
-
-    getThermostatService() {
-
-        var thermostat = new Service.Thermostat(this.name);
-
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
             .on('get', this.getCurrentHeatingCoolingState.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.TargetHeatingCoolingState)
             .on('get', this.getTargetHeatingCoolingState.bind(this))
             .on('set', this.setTargetHeatingCoolingState.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getCurrentTemperature.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.TargetTemperature)
             .on('get', this.getTargetTemperature.bind(this))
             .on('set', this.setTargetTemperature.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.TemperatureDisplayUnits)
             .on('get', this.getTemperatureDisplayUnits.bind(this))
             .on('set', this.setTemperatureDisplayUnits.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.HeatingThresholdTemperature)
             .on('get', this.getHeatingThresholdTemperature.bind(this))
             .on('set', this.setHeatingThresholdTemperature.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.CoolingThresholdTemperature)
             .on('get', this.getCoolingThresholdTemperature.bind(this))
             .on('set', this.setCoolingThresholdTemperature.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.Name)
             .on('get', this.getName.bind(this));
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.CurrentTemperature)
             .setProps({
                 maxValue: 100,
@@ -344,7 +354,7 @@ class VRC700Thermostat {
                 minStep: 1
             });
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.TargetTemperature)
             .setProps({
                 maxValue: this.maxTemp,
@@ -352,7 +362,7 @@ class VRC700Thermostat {
                 minStep: 1
             });
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.HeatingThresholdTemperature)
             .setProps({
                 maxValue: 35,
@@ -360,7 +370,7 @@ class VRC700Thermostat {
                 minStep: 1
             });
 
-        thermostat
+        regulator
             .getCharacteristic(Characteristic.CoolingThresholdTemperature)
             .setProps({
                 maxValue: 35,
@@ -368,10 +378,11 @@ class VRC700Thermostat {
                 minStep: 1
             });
 
-        return thermostat;
+        return regulator;
 
     }
 
-};
 
-module.exports = VRC700Thermostat;
+}
+
+export default VRC700Thermostat;

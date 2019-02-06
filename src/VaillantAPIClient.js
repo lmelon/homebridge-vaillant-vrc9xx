@@ -1,7 +1,6 @@
 const tough = require('tough-cookie');
-const qwest = require('axios');
 const cookieJarSupport = require('axios-cookiejar-support').default;
-cookieJarSupport(qwest);
+const qwest = cookieJarSupport(require('axios'));
 
 class VRC9xxAPI {
 
@@ -77,14 +76,12 @@ class VRC9xxAPI {
     
     }
     
-    async getSystemStatus(facilitySerial) {
+    async getFullSystem(facilitySerial) {
     
         const url_config = `/facilities/${facilitySerial}/systemcontrol/v1/`;
         const system = await this.query(url_config, 'get', null);
-    
-        var json = JSON.stringify(system.data.body, null, 4);
-        this.log(json)
-    
+        return system.data.body
+        
     }
     
     

@@ -16,10 +16,11 @@
   "author": "Laurent Mélon",
   "license": "ISC",
   "dependencies": {
+    "@std/esm": "^0.26.0",
     "axios": "^0.18.0",
     "axios-cookiejar-support": "^0.4.2",
-    "tough-cookie": "^3.0.0",
-    "lodash": "^4.17.11"
+    "lodash": "^4.17.11",
+    "tough-cookie": "^3.0.0"
   },
   "engines": {
     "homebridge": "0.4.46"
