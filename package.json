@@ -2,6 +2,10 @@
   "name": "homebridge-vaillant-vrc9xx",
   "version": "0.1.0",
   "description": "Vaillant VRC9xx - Homebridge Platform Plugin ",
+  "repository": {
+    "url": "https://github.com/lmelon/homebridge-vaillant-vrc9xx.git",
+    "type": "git"
+  },
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

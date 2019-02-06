@@ -59,6 +59,19 @@ class VRC700Thermostat {
         return switches;
     }
 
+    setQuickMode(mode, value, callback) {
+        this.log('Setting Current mode: ', mode, value);
+
+        QUICK_MODES.forEach(item => {
+            this.quickModeSwitches[item].value = (mode === item) && value
+            this.quickModeSwitches[item].service
+                .getCharacteristic(Characteristic.On)
+                .updateValue(this.quickModeSwitches[item].value)
+        })
+
+        return callback(null);
+    }
+
     getCurrentOutsideTemperature(callback) {
         this.log('Getting Current Outside Temperature');
         return callback(null, this.currentOutsideTemperature);
@@ -283,19 +296,6 @@ class VRC700Regulator {
         this.log('Set humidity unsupported');
         error = "Set humidity unsupported";
         return callback(error);
-    }
-
-    setQuickMode(mode, value, callback) {
-        this.log('Setting Current mode: ', mode, value);
-
-        QUICK_MODES.forEach(item => {
-            this.quickModeSwitches[item].value = (mode === item) && value
-            this.quickModeSwitches[item].service
-                .getCharacteristic(Characteristic.On)
-                .updateValue(this.quickModeSwitches[item].value)
-        })
-
-        return callback(null);
     }
 
     getName(callback) {

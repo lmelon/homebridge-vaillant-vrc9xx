@@ -22,14 +22,16 @@ class VaillantAPIPoller extends EventEmitter {
 
     async start() {
 
-        await this.api.logIn()
-        this.emit(VAILLANT_POLLER_EVENTS.AUTHENTICATION);
+        const success = await this.api.logIn()
+        this.emit(VAILLANT_POLLER_EVENTS.AUTHENTICATION, {success});
 
-        let facilities = await this.api.getFacilities()
-        facilities.forEach(facility => {
-            this.createFacility(facility)
-        });
-
+        if (success) {
+            let facilities = await this.api.getFacilities()
+            facilities.forEach(facility => {
+                this.createFacility(facility)
+            });
+        }
+        
     }
 
     createCredential() {
@@ -42,8 +44,6 @@ class VaillantAPIPoller extends EventEmitter {
 
     async createFacility(facility) {
 
-        this.log(facility)
-
         const serial = facility.serialNumber
         this.state[serial] = { facility }
 
@@ -52,7 +52,7 @@ class VaillantAPIPoller extends EventEmitter {
     }
 
     async refreshFacility(serial) {
-        let system = await this.api.getFullSystem(serial)
+        let system = await this.api.getFullState(serial)
 
         this.state[serial].current = system
         this.state[serial].refresh = new Date()

@@ -47,7 +47,7 @@ class VaillantVRC9xxPlatform {
     }
 
     authenticatedEvent(e) {
-        this.log("Authenticated")
+        this.log("Authenticated: ", e.success)
     }
 
     facilitiesEvent(facility) {
