@@ -122,13 +122,17 @@ class VRC9xxAPI {
         let devices = info.measures.devices
         Object.keys(info.system.dhw).forEach(key => {
 
-            let measures
+            let measures = []
             let reports = devices.find(item => item._id === key)
             if (reports) {
                 measures = reports.reports.filter(item => item.measurement_category === "TEMPERATURE")
-            }                    
-                                
-            info.system.dhw[key].configuration = measures
+            }
+
+            info.system.dhw[key].configuration = _.zipObject(
+                measures.map(item => item._id),
+                measures
+            )
+
         })
 
         return info
@@ -140,6 +144,18 @@ class VRC9xxAPI {
 
         const data = {
             setpoint_temperature: temperature
+        }
+
+        await this.query(url, 'put', data)
+
+    }
+
+    async setTargetDHWTemperature(facilitySerial, dhw, temperature) {
+
+        const url = `/facilities/${facilitySerial}/systemcontrol/v1/dhw/${dhw}/hotwater/configuration/temperature_setpoint`;
+
+        const data = {
+            temperature_setpoint: temperature
         }
 
         await this.query(url, 'put', data)
@@ -170,6 +186,19 @@ class VRC9xxAPI {
 
     }
 
+    async setDHWOperationMode(facilitySerial, dhw, mode) {
+
+        const url = `/facilities/${facilitySerial}/systemcontrol/v1/dhw/${dhw}/hotwater/configuration/operation_mode`;
+
+        const data = {
+            operation_mode: mode
+        }
+
+        await this.query(url, 'put', data)
+
+    }
+
+    // *******************************************************************
     async getOverview(facilitySerial) {
 
         const url = `/facilities/${facilitySerial}/hvacstate/v1/overview`;
@@ -191,9 +220,6 @@ class VRC9xxAPI {
 
     }
 
-
-
-    // *******************************************************************
     async getZones(facilitySerial) {
 
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones`;

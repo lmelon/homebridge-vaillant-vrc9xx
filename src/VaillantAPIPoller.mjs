@@ -80,13 +80,14 @@ class VaillantAPIPoller extends EventEmitter {
             dhw_zones.forEach(key => {
                 let dhw_zone = info.system.dhw[key]
                 let i = 0
-                dhw_zone.configuration.forEach(conf => {
+
+                Object.keys(dhw_zone.configuration).forEach(conf => {
     
                     let sensor = {
                         type: "SENSOR",
-                        name: conf.name,
+                        name: dhw_zone.configuration[conf].name,
                         serial,
-                        path: `system.dhw.${key}.configuration[${i}].value`
+                        path: `system.dhw.${key}.configuration.${conf}.value`
                     }
         
                     sensors.push(sensor)
@@ -127,7 +128,7 @@ class VaillantAPIPoller extends EventEmitter {
                     update_callback: (value) => { api.setTargetTemperature(serial, key, value) }
                 }
 
-                // target reduced temp
+                // target temp
                 regulator.target_reduced_temp = {
                     type: "ACTUATOR",
                     path: `system.zones.${key}.heating.configuration.setback_temperature`,
@@ -147,14 +148,55 @@ class VaillantAPIPoller extends EventEmitter {
             return regulators
         }
 
+        function buildDHWRegulatorDescriptor(serial, info, api) {
+
+            let regulators = []
+
+            // iterate on dhw zones
+            const dhw = Object.keys(info.system.dhw)
+            dhw.forEach(key => {
+                
+                let regulator = { name: key, serial}
+    
+                // current temp
+                regulator.current_temp = {
+                    type: "SENSOR",
+                    path: `system.dhw.${key}.configuration.DomesticHotWaterTankTemperature.value`
+                }
+
+                // current status
+                regulator.current_status = {
+                    type: "STATE",
+                    path: `system.dhw.${key}.hotwater.configuration.operation_mode`
+                }
+
+                // target temp
+                regulator.target_temp = {
+                    type: "ACTUATOR",
+                    path: `system.dhw.${key}.hotwater.configuration.temperature_setpoint`,
+                    update_callback: (value) => { api.setTargetDHWTemperature(serial, key, value) }
+                }
+
+                // target status
+                regulator.target_status = {
+                    type: "ACTUATOR",
+                    path: `system.dhw.${key}.hotwater.configuration.operation_mode`,
+                    update_callback: (value) => { api.setDHWOperationMode(serial, key, value) }
+                }
+
+                regulators.push(regulator)
+            })
+
+            return regulators
+        }
+
         const info = this.state[serial].current
         let descriptor = this.state[serial].facility
         
         descriptor.gateway = info.gateway.gatewayType
         descriptor.sensors = buildSensorsDescriptor(serial, info)
         descriptor.regulators = buildRegulatorDescriptor(serial, info, this.api)
-
-        console.log(JSON.stringify(descriptor));
+        descriptor.dhw_regulators = buildDHWRegulatorDescriptor(serial, info, this.api)
 
         return descriptor
     }
@@ -169,6 +211,11 @@ class VaillantAPIPoller extends EventEmitter {
 
         this.timer = setTimeout(() => { this.refreshFacility(serial) }, this.config.polling * 1000)
         this.log(`Facility ${this.state[serial].facility.name} refreshed`)
+    }
+
+    apiCallWrapper(callback) {
+        callback()
+        
     }
 
     subscribe(serial, path, callback) {

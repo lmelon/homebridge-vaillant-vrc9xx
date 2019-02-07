@@ -64,7 +64,8 @@ class VaillantVRC9xxPlatform {
             gateway: facility.gateway,
             uuid,
             sensors: facility.sensors,
-            regulators: facility.regulators
+            regulators: facility.regulators,
+            dhw_regulators: facility.dhw_regulators
         }
 
         var accessory = new VRC700Thermostat(this.api, this.log, config_data, this);
