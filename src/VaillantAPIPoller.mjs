@@ -149,7 +149,8 @@ class VaillantAPIPoller extends EventEmitter {
 
         const info = this.state[serial].current
         let descriptor = this.state[serial].facility
-
+        
+        descriptor.gateway = info.gateway.gatewayType
         descriptor.sensors = buildSensorsDescriptor(serial, info)
         descriptor.regulators = buildRegulatorDescriptor(serial, info, this.api)
 

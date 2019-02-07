@@ -21,7 +21,7 @@ class VRC700Thermostat {
 
         this.name = config.name || "VRC700";
         this.manufacturer = "Vaillant";
-        this.model = "Homebridge VRC700";
+        this.model = config.gateway;
         this.firmware = config.firmware || "UNKNOWN";
         this.serial = config.serial
         this.sensors = config.sensors
@@ -161,21 +161,21 @@ class VRC700Regulator {
         this.CurrentHeatingCoolingState = undefined
         this.CurrentTemperature = undefined
         
-        this.TargetTemperature = undefined
-        this.HeatingThresholdTemperature = undefined
+        this.TargetDayTemperature = undefined
+        this.TargetNightTemperature = undefined
         this.TargetHeatingCoolingState = undefined
 
         this._service = this.createRegulatorService()
 
-        this.setTargetTemperatureCallback = desc.target_temp.update_callback
-        this.setTargetReducedTemperatureCallback = desc.target_reduced_temp.update_callback
+        this.setTargetDayTemperatureCallback = desc.target_temp.update_callback
+        this.setTargetNightTemperatureCallback = desc.target_reduced_temp.update_callback
         this.setHeatingModeCallback = desc.target_status.update_callback
 
         platform.registerObserver(desc.serial, desc.current_temp.path, this.updateCurrentTemperature.bind(this))
         platform.registerObserver(desc.serial, desc.current_status.path, this.updateCurrentHeatingCoolingState.bind(this))
 
-        platform.registerObserver(desc.serial, desc.target_temp.path, this.updateTargetTemperature.bind(this))
-        platform.registerObserver(desc.serial, desc.target_reduced_temp.path, this.updateHeatingThresholdTemperature.bind(this))
+        platform.registerObserver(desc.serial, desc.target_temp.path, this.updateTargetDayTemperature.bind(this))
+        platform.registerObserver(desc.serial, desc.target_reduced_temp.path, this.updateTargetNightTemperature.bind(this))
         platform.registerObserver(desc.serial, desc.target_status.path, this.updateTargetHeatingCoolingState.bind(this))
         
     }
@@ -184,6 +184,7 @@ class VRC700Regulator {
         return this._service
     }
 
+    // --------- CURRENT STATE
     getCurrentHeatingCoolingState(callback) {
         switch(this.CurrentHeatingCoolingState) {
             case 'STANDBY':
@@ -218,67 +219,66 @@ class VRC700Regulator {
 
     }
 
-    getTargetHeatingCoolingState(callback) {
+    // --------- TARGET STATE
+    vrc700ToHomeKitTargetState(vrc700state) {
         switch(this.TargetHeatingCoolingState) {
             case 'OFF':
-                return callback(null, Characteristic.TargetHeatingCoolingState.OFF)
+                return Characteristic.TargetHeatingCoolingState.OFF
             case 'DAY': 
-                return callback(null, Characteristic.TargetHeatingCoolingState.HEAT)
+                return Characteristic.TargetHeatingCoolingState.HEAT
             case 'AUTO': 
-                return callback(null, Characteristic.TargetHeatingCoolingState.AUTO)
-            default:
-                return callback(null, Characteristic.TargetHeatingCoolingState.COOL)
+                return Characteristic.TargetHeatingCoolingState.AUTO
+            case 'NIGHT':
+                return Characteristic.TargetHeatingCoolingState.COOL
         }
+    }
+
+    hkToVRC700TargetState(hkState) {
+        switch(hkState) {
+            case Characteristic.TargetHeatingCoolingState.OFF:
+                return 'OFF'
+            case Characteristic.TargetHeatingCoolingState.HEAT:
+                return 'DAY'
+            case Characteristic.TargetHeatingCoolingState.AUTO:
+                return 'AUTO'
+            case Characteristic.TargetHeatingCoolingState.COOL:
+                return 'NIGHT'
+        }
+    }
+
+    getTargetHeatingCoolingState(callback) {
+        let hkState = this.vrc700ToHomeKitTargetState(this.TargetHeatingCoolingState)
+        return callback(null, hkState)
     }
 
     updateTargetHeatingCoolingState(value) {
-        this.log('Updating Target State from/to :', this.TargetHeatingCoolingState, value.current);
-
+        this.log('Updating Target State from/to :', this.TargetHeatingCoolingState, value.current);        
         this.TargetHeatingCoolingState = value.current
 
-        let target;
-        switch(this.TargetHeatingCoolingState) {
-            case 'OFF':
-                target = Characteristic.TargetHeatingCoolingState.OFF
-                break
-            case 'DAY': 
-                target = Characteristic.TargetHeatingCoolingState.HEAT
-                break
-            case 'AUTO': 
-                target = Characteristic.TargetHeatingCoolingState.AUTO
-                break
-            default:
-                target = Characteristic.TargetHeatingCoolingState.COOL
-        }
-
+        let hkState = this.vrc700ToHomeKitTargetState(this.TargetHeatingCoolingState)
+        
         this._service
             .getCharacteristic(Characteristic.TargetHeatingCoolingState)
-            .updateValue(target)
+            .updateValue(hkState)
+
+        this.updateTargetTemperature()
     }
 
     setTargetHeatingCoolingState(value, callback) {
-        this.log('Setting Target State from/to :', this.TargetHeatingCoolingState, value);
 
-        switch(value) {
-            case Characteristic.TargetHeatingCoolingState.OFF:
-                this.TargetHeatingCoolingState = 'OFF'
-                break
-            case Characteristic.TargetHeatingCoolingState.HEAT:
-                this.TargetHeatingCoolingState = 'DAY'
-                break
-            case Characteristic.TargetHeatingCoolingState.AUTO:
-                this.TargetHeatingCoolingState = 'AUTO'
-                break
-            default:
-                return callback(value + " state unsupported");
-        }
+        let vrc700State = this.hkToVRC700TargetState(value)
+        this.log('Setting Target State from/to :', this.TargetHeatingCoolingState, vrc700State);
 
+        this.TargetHeatingCoolingState = vrc700State
         this.setHeatingModeCallback(this.TargetHeatingCoolingState)
 
-        return callback(null);
+        this.updateTargetTemperature()
 
+        return callback(null);
     }
 
+
+    // --------- CURRENT TEMPERATURE
     getCurrentTemperature(callback) {
         this.log('Getting Current Temperature');
         return callback(null, this.CurrentTemperature);
@@ -287,51 +287,112 @@ class VRC700Regulator {
     updateCurrentTemperature(value) {
         this.log('Updating Current Temperature from/to :', this.CurrentTemperature, value.current);
         this.CurrentTemperature = value.current
+
+        this._service
+            .getCharacteristic(Characteristic.CurrentTemperature)
+            .updateValue(this.CurrentTemperature)
+
     }
 
+    // --------- TARGET TEMPERATURE
     getTargetTemperature(callback) {
         this.log('Getting Target Temperature');
-        return callback(null, this.TargetTemperature);
+
+        let targetTemp = this.TargetDayTemperature
+        
+        if (this.TargetHeatingCoolingState === 'NIGHT') {
+            targetTemp = this.TargetNightTemperature
+        }
+
+        return callback(null, targetTemp);
     }
 
-    updateTargetTemperature(value) {
-        this.log('Updating Target Temperature from/to :', this.TargetTemperature, value.current);
-        this.TargetTemperature = value.current
+    updateTargetTemperature() {
+
+        let targetTemp = this.TargetDayTemperature
+        if (this.TargetHeatingCoolingState === 'NIGHT') {
+            targetTemp = this.TargetNightTemperature
+        }
+
+        this.log('Target Temperature is now:', targetTemp);
+
+        this._service
+            .getCharacteristic(Characteristic.TargetTemperature)
+            .updateValue(targetTemp)
+
     }
 
     setTargetTemperature(value, callback) {
+        if (this.TargetHeatingCoolingState === 'NIGHT') {
+            return this.setTargetNightTemperature(value, callback)
+        } 
+        
+        return this.setTargetDayTemperature(value, callback)
+        
+    }
+
+    // --------- TARGET DAY TEMPERATURE
+    updateTargetDayTemperature(value) {
+        this.log('Updating Target Day Temperature from/to :', this.TargetDayTemperature, value.current);
+        this.TargetDayTemperature = value.current
+
+        this._service
+            .getCharacteristic(Characteristic.TargetDayTemperature)
+            .updateValue(this.TargetDayTemperature)
+
+        this.updateTargetTemperature()
+    }
+
+    getTargetDayTemperature(callback) {
+        this.log('Getting Target Day Temperature');
+        return callback(null, this.TargetDayTemperature);
+    }
+
+    setTargetDayTemperature(value, callback) {
         if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
             value = this.cToF(value);
         }
 
-        this.setTargetTemperatureCallback(value);
+        this.setTargetDayTemperatureCallback(value)
+        this.TargetDayTemperature = value
+        this.log('Setting Target Day Temperature to: ', value);
+        
+        this.updateTargetTemperature()
 
-        this.log('Setting Target Temperature to: ', value);
-        this.TargetTemperature = value
         return callback(null);
     }
 
-    getHeatingThresholdTemperature(callback) {
-        this.log('Getting Heating Threshold');
-        return callback(null, this.HeatingThresholdTemperature);
+    // --------- TARGET NIGHT TEMPERATURE
+    updateTargetNightTemperature(value) {
+        this.log('Updating Target Night Temperature from/to :', this.TargetNightTemperature, value.current);
+        this.TargetNightTemperature = value.current
+
+        this._service
+            .getCharacteristic(Characteristic.TargetNightTemperature)
+            .updateValue(this.TargetNightTemperature)
+
+        this.updateTargetTemperature()        
     }
 
-    updateHeatingThresholdTemperature(value) {
-        this.log('Updating Threshold Temperature from/to :', this.HeatingThresholdTemperature, value.current);
-        this.HeatingThresholdTemperature = value.current
+    getTargetNightTemperature(callback) {
+        this.log('Getting Target Night Temperature');
+        return callback(null, this.TargetNightTemperature);
     }
 
-    setHeatingThresholdTemperature(value, callback) {
+    setTargetNightTemperature(value, callback) {
         if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
             value = this.cToF(value);
         }
 
-        this.setTargetReducedTemperatureCallback(value);
+        this.setTargetNightTemperatureCallback(value)
+        this.TargetNightTemperature = value
+        this.log('Setting Target Night Temperature to: ', value);
+        
+        this.updateTargetTemperature()
 
-        this.log('Setting Target Heat Threshold to: ', value);
-        this.HeatingThresholdTemperature = value;
         return callback(null);
     }
+
 
     getTemperatureDisplayUnits(callback) {
         this.log('Getting Temperature Display Units');
@@ -389,27 +450,6 @@ class VRC700Regulator {
             .on('set', this.setTemperatureDisplayUnits.bind(this));
 
         regulator
-            .getCharacteristic(Characteristic.HeatingThresholdTemperature)
-            .on('get', this.getHeatingThresholdTemperature.bind(this))
-            .on('set', this.setHeatingThresholdTemperature.bind(this));
-
-        Characteristic.TargetNightTemperature = function() {
-            Characteristic.call(this, 'Target Night Temperature', '2DB4D12B-B2DD-42EA-A469-A23051F478D7');
-            this.setProps({
-                format: Characteristic.Formats.FLOAT,
-                unit: Characteristic.Units.CELSIUS,
-                maxValue: 30,
-                minValue: 5,
-                minStep: 0.5,
-                perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
-            });
-            this.value = this.getDefaultValue();
-        };
-            
-        inherits(Characteristic.TargetNightTemperature, Characteristic);    
-        Characteristic.TargetNightTemperature.UUID = '2DB4D12B-B2DD-42EA-A469-A23051F478D7';
-
-        regulator
             .getCharacteristic(Characteristic.Name)
             .on('get', this.getName.bind(this));
 
@@ -429,6 +469,22 @@ class VRC700Regulator {
                 minStep: 0.5
             });
 
+        Characteristic.TargetNightTemperature = function() {
+            Characteristic.call(this, 'Target Night Temperature', '2DB4D12B-B2DD-42EA-A469-A23051F478D7');
+            this.setProps({
+                format: Characteristic.Formats.FLOAT,
+                unit: Characteristic.Units.CELSIUS,
+                maxValue: 30,
+                minValue: 5,
+                minStep: 0.5,
+                perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+            });
+            this.value = this.getDefaultValue();
+        };
+            
+        inherits(Characteristic.TargetNightTemperature, Characteristic);    
+        Characteristic.TargetNightTemperature.UUID = '2DB4D12B-B2DD-42EA-A469-A23051F478D7';
+
         regulator
             .getCharacteristic(Characteristic.TargetNightTemperature)
             .setProps({
@@ -438,7 +494,28 @@ class VRC700Regulator {
             });
 
         regulator
-            .getCharacteristic(Characteristic.HeatingThresholdTemperature)
+            .getCharacteristic(Characteristic.TargetNightTemperature)
+            .on('get', this.getTargetNightTemperature.bind(this))
+            .on('set', this.setTargetNightTemperature.bind(this));
+
+        Characteristic.TargetDayTemperature = function() {
+            Characteristic.call(this, 'Target Day Temperature', 'E0C2907C-0011-4392-87B7-10622C654D5C');
+            this.setProps({
+                format: Characteristic.Formats.FLOAT,
+                unit: Characteristic.Units.CELSIUS,
+                maxValue: 30,
+                minValue: 5,
+                minStep: 0.5,
+                perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+            });
+            this.value = this.getDefaultValue();
+        };
+            
+        inherits(Characteristic.TargetDayTemperature, Characteristic);    
+        Characteristic.TargetDayTemperature.UUID = 'E0C2907C-0011-4392-87B7-10622C654D5C';
+
+        regulator
+            .getCharacteristic(Characteristic.TargetDayTemperature)
             .setProps({
                 maxValue: 30,
                 minValue: 5,
@@ -446,12 +523,9 @@ class VRC700Regulator {
             });
 
         regulator
-            .getCharacteristic(Characteristic.CoolingThresholdTemperature)
-            .setProps({
-                maxValue: 30,
-                minValue: 0,
-                minStep: 1
-            });
+            .getCharacteristic(Characteristic.TargetDayTemperature)
+            .on('get', this.getTargetDayTemperature.bind(this))
+            .on('set', this.setTargetDayTemperature.bind(this));
 
         return regulator;
 

@@ -53,7 +53,6 @@ class VaillantVRC9xxPlatform {
     facilitiesEvent(facility) {
         const name = facility.name
         const serial = facility.serialNumber
-        const firmware = facility.firmwareVersion
 
         this.log(`New facility ${name} - ${serial}`)
         var uuid = this.api.hap.uuid.generate(serial);
@@ -61,7 +60,8 @@ class VaillantVRC9xxPlatform {
         const config_data = {
             name,
             serial,
-            firmware,
+            firmware: facility.firmwareVersion,
+            gateway: facility.gateway,
             uuid,
             sensors: facility.sensors,
             regulators: facility.regulators
