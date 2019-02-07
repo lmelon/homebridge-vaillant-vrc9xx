@@ -1,25 +1,33 @@
-import _ from 'lodash';
+import _ from 'lodash'
+import util from 'util'
+const inherits = util.inherits
+
 const QUICK_MODES = ["Party", "Day in", "Day out"];
 
 let Accessory, Characteristic, Service;
 
 class VRC700Thermostat {
 
-    constructor(api, log, config) {
+    constructor(api, log, config, platform) {
 
         Accessory = api.hap.Accessory;
         Characteristic = api.hap.Characteristic;
         Service = api.hap.Service;
 
         //Homebridge Config.
-        this.log = log;
+        this.log = log
+        this.api = api
+        this.platform = platform
+
         this.name = config.name || "VRC700";
         this.manufacturer = "Vaillant";
         this.model = "Homebridge VRC700";
-        this.serial_number = config.serial_number || "UNKNOWN";
+        this.firmware = config.firmware || "UNKNOWN";
+        this.serial = config.serial
+        this.sensors = config.sensors
+        this.regulators = config.regulators
 
         // state
-        this.currentOutsideTemperature = 4;
         this.quickModeSwitches = _.zipObject(QUICK_MODES, QUICK_MODES.map(() => {return { value: false }}));
 
         // services
@@ -34,7 +42,7 @@ class VRC700Thermostat {
         const services = [
             this.getAccessoryInformationService(),
             this.getBridgingStateService(),
-            //this.createRegulatorService(),
+            ...this.getRegulatorServices(),
             ...this.getSensors(),
             ...this.getQuickActionsSwitches()
         ];
@@ -43,7 +51,6 @@ class VRC700Thermostat {
     }
 
     getQuickActionsSwitches() {
-
         var switches = []; 
         QUICK_MODES.forEach(item => {
             var swi = new Service.Switch(item, item);
@@ -72,21 +79,24 @@ class VRC700Thermostat {
         return callback(null);
     }
 
-    getCurrentOutsideTemperature(callback) {
-        this.log('Getting Current Outside Temperature');
-        return callback(null, this.currentOutsideTemperature);
+    getSensors() {
+        let services = []
+        this.sensors.forEach(descr => {
+            let sensor = new VRC700TemperatureSensor(descr, this.platform, this.log)
+            services.push(sensor.getService())
+        })
+
+        return services
     }
 
-    getSensors() {
+    getRegulatorServices() {
+        let services = []
+        this.regulators.forEach(descr => {
+            let regulator = new VRC700Regulator(descr, this.platform, this.log)
+            services.push(regulator.getService())
+        })
 
-        var outsideSensor = new Service.TemperatureSensor("Outside Temp")
-        outsideSensor
-            .setCharacteristic(Characteristic.Name, "Outside Temp")
-            .getCharacteristic(Characteristic.CurrentTemperature)
-            .on('get', this.getCurrentOutsideTemperature.bind(this));
-
-        return [outsideSensor]
-
+        return services
     }
 
     getAccessoryInformationService() {
@@ -94,8 +104,8 @@ class VRC700Thermostat {
             .setCharacteristic(Characteristic.Name, this.name)
             .setCharacteristic(Characteristic.Manufacturer, this.manufacturer)
             .setCharacteristic(Characteristic.Model, this.model)
-            .setCharacteristic(Characteristic.SerialNumber, this.serial_number)
-            .setCharacteristic(Characteristic.FirmwareRevision, this.version)
+            .setCharacteristic(Characteristic.SerialNumber, this.serial)
+            .setCharacteristic(Characteristic.FirmwareRevision, this.firmware)
             .setCharacteristic(Characteristic.HardwareRevision, this.version);
     }
 
@@ -109,99 +119,161 @@ class VRC700Thermostat {
         return bridgingStateService;
     }
 
-
-
-    
-
 };
+
+class VRC700TemperatureSensor {
+
+    constructor(desc, platform) {
+        this.name = desc.name
+        this.currentTemperature = 2
+
+        this._service = new Service.TemperatureSensor(this.name, this.name)
+        this._service
+            .setCharacteristic(Characteristic.Name, this.name)
+            .getCharacteristic(Characteristic.CurrentTemperature)
+            .on('get', this.getCurrentTemperature.bind(this));
+
+        platform.registerObserver(desc.serial, desc.path, this.updateCurrentTemperature.bind(this))
+    }
+
+    getCurrentTemperature(callback) {
+        //this.log('Getting Current Temperature:', this.name);
+        return callback(null, this.currentTemperature);
+    }
+
+    updateCurrentTemperature(value) {
+        this.currentTemperature = value.current
+    }
+
+    getService() {
+        return this._service
+    }
+
+}
 
 class VRC700Regulator {
 
-    constructor() {
+    constructor(desc, platform, log) {
+
+        this.log = log
 
         //State
-        this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.OFF;
-        this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.OFF;
-        this.CurrentTemperature = 20;
-        this.TargetTemperature = 20;
+        this.CurrentHeatingCoolingState = undefined
+        this.CurrentTemperature = undefined
+        
+        this.TargetTemperature = undefined
+        this.HeatingThresholdTemperature = undefined
+        this.TargetHeatingCoolingState = undefined
 
-        this.CoolingThresholdTemperature = 25;
-        this.HeatingThresholdTemperature = 20;
+        this._service = this.createRegulatorService()
 
+        this.setTargetTemperatureCallback = desc.target_temp.update_callback
+        this.setTargetReducedTemperatureCallback = desc.target_reduced_temp.update_callback
+        this.setHeatingModeCallback = desc.target_status.update_callback
+
+        platform.registerObserver(desc.serial, desc.current_temp.path, this.updateCurrentTemperature.bind(this))
+        platform.registerObserver(desc.serial, desc.current_status.path, this.updateCurrentHeatingCoolingState.bind(this))
+
+        platform.registerObserver(desc.serial, desc.target_temp.path, this.updateTargetTemperature.bind(this))
+        platform.registerObserver(desc.serial, desc.target_reduced_temp.path, this.updateHeatingThresholdTemperature.bind(this))
+        platform.registerObserver(desc.serial, desc.target_status.path, this.updateTargetHeatingCoolingState.bind(this))
+        
     }
 
-    cToF(value) {
-        return Number((9 * value / 5 + 32).toFixed(0));
-    }
-
-    fToC(value) {
-        return Number((5 * (value - 32) / 9).toFixed(2));
-    }
-
-    identify(callback) {
-        this.log('Identify requested!');
-        return callback(); // succes
+    getService() {
+        return this._service
     }
 
     getCurrentHeatingCoolingState(callback) {
-        this.log('Getting Current State');
+        switch(this.CurrentHeatingCoolingState) {
+            case 'STANDBY':
+                return callback(null, Characteristic.CurrentHeatingCoolingState.OFF)
+            case 'HEATING': 
+                return callback(null, Characteristic.CurrentHeatingCoolingState.HEAT)
+            default:
+                return callback(null, Characteristic.CurrentHeatingCoolingState.COOL)
+        }
+    }
 
-        const json = {
-            currentState: 1
+    updateCurrentHeatingCoolingState(value) {
+        this.log('Updating Current State from/to :', this.CurrentHeatingCoolingState, value.current);
+
+        this.CurrentHeatingCoolingState = value.current
+
+        let newValue;
+        switch(this.CurrentHeatingCoolingState) {
+            case 'STANDBY':
+                newValue = Characteristic.CurrentHeatingCoolingState.OFF
+                break
+            case 'HEATING': 
+                newValue = Characteristic.CurrentHeatingCoolingState.HEAT
+                break
+            default:
+                newValue = Characteristic.CurrentHeatingCoolingState.COOL
         }
 
-        if (json.currentState == 0) {
-            this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.OFF;
-        } else if (json.currentState == 1) {
-            this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.HEAT;
-        } else if (json.currentState == 2) {
-            this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.COOL;
-        }
-        return callback(null, this.CurrentHeatingCoolingState);
+        this._service
+            .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
+            .updateValue(newValue)
 
     }
 
     getTargetHeatingCoolingState(callback) {
-        this.log('Getting Current State');
+        switch(this.TargetHeatingCoolingState) {
+            case 'OFF':
+                return callback(null, Characteristic.TargetHeatingCoolingState.OFF)
+            case 'DAY': 
+                return callback(null, Characteristic.TargetHeatingCoolingState.HEAT)
+            case 'AUTO': 
+                return callback(null, Characteristic.TargetHeatingCoolingState.AUTO)
+            default:
+                return callback(null, Characteristic.TargetHeatingCoolingState.COOL)
+        }
+    }
 
-        const json = {
-            currentState: 1
+    updateTargetHeatingCoolingState(value) {
+        this.log('Updating Target State from/to :', this.TargetHeatingCoolingState, value.current);
+
+        this.TargetHeatingCoolingState = value.current
+
+        let target;
+        switch(this.TargetHeatingCoolingState) {
+            case 'OFF':
+                target = Characteristic.TargetHeatingCoolingState.OFF
+                break
+            case 'DAY': 
+                target = Characteristic.TargetHeatingCoolingState.HEAT
+                break
+            case 'AUTO': 
+                target = Characteristic.TargetHeatingCoolingState.AUTO
+                break
+            default:
+                target = Characteristic.TargetHeatingCoolingState.COOL
         }
 
-        if (json.currentState == 0) {
-            this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.OFF;
-        } else if (json.currentState == 1) {
-            this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.HEAT;
-        } else if (json.currentState == 2) {
-            this.CurrentHeatingCoolingState = Characteristic.CurrentHeatingCoolingState.COOL;
-        }
-
-        return callback(null, this.CurrentHeatingCoolingState);
+        this._service
+            .getCharacteristic(Characteristic.TargetHeatingCoolingState)
+            .updateValue(target)
     }
 
     setTargetHeatingCoolingState(value, callback) {
-        var tarState = 0;
         this.log('Setting Target State from/to :', this.TargetHeatingCoolingState, value);
-        if (value == Characteristic.TargetHeatingCoolingState.OFF) {
-            this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.OFF;
-            tarState = 0;
-        } else if (value == Characteristic.TargetHeatingCoolingState.HEAT) {
-            this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.HEAT;
-            tarState = 1;
-        } else if (value == Characteristic.TargetHeatingCoolingState.COOL) {
-            //this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.COOL;
-            //tarState = 2;
 
-
-            return callback(value + " state unsupported");
-        } else if (value == Characteristic.TargetHeatingCoolingState.AUTO) {
-            this.TargetHeatingCoolingState = Characteristic.TargetHeatingCoolingState.AUTO;
-            tarState = 3;
-        } else {
-            this.log('Unsupported value', value);
-            tarState = 0;
-            return callback(value + " state unsupported");
+        switch(value) {
+            case Characteristic.TargetHeatingCoolingState.OFF:
+                this.TargetHeatingCoolingState = 'OFF'
+                break
+            case Characteristic.TargetHeatingCoolingState.HEAT:
+                this.TargetHeatingCoolingState = 'DAY'
+                break
+            case Characteristic.TargetHeatingCoolingState.AUTO:
+                this.TargetHeatingCoolingState = 'AUTO'
+                break
+            default:
+                return callback(value + " state unsupported");
         }
+
+        this.setHeatingModeCallback(this.TargetHeatingCoolingState)
 
         return callback(null);
 
@@ -212,9 +284,19 @@ class VRC700Regulator {
         return callback(null, this.CurrentTemperature);
     }
 
+    updateCurrentTemperature(value) {
+        this.log('Updating Current Temperature from/to :', this.CurrentTemperature, value.current);
+        this.CurrentTemperature = value.current
+    }
+
     getTargetTemperature(callback) {
         this.log('Getting Target Temperature');
         return callback(null, this.TargetTemperature);
+    }
+
+    updateTargetTemperature(value) {
+        this.log('Updating Target Temperature from/to :', this.TargetTemperature, value.current);
+        this.TargetTemperature = value.current
     }
 
     setTargetTemperature(value, callback) {
@@ -222,7 +304,10 @@ class VRC700Regulator {
             value = this.cToF(value);
         }
 
+        this.setTargetTemperatureCallback(value);
+
         this.log('Setting Target Temperature to: ', value);
+        this.TargetTemperature = value
         return callback(null);
     }
 
@@ -231,28 +316,20 @@ class VRC700Regulator {
         return callback(null, this.HeatingThresholdTemperature);
     }
 
+    updateHeatingThresholdTemperature(value) {
+        this.log('Updating Threshold Temperature from/to :', this.HeatingThresholdTemperature, value.current);
+        this.HeatingThresholdTemperature = value.current
+    }
+
     setHeatingThresholdTemperature(value, callback) {
         if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
             value = this.cToF(value);
         }
 
+        this.setTargetReducedTemperatureCallback(value);
+
         this.log('Setting Target Heat Threshold to: ', value);
         this.HeatingThresholdTemperature = value;
-        return callback(null);
-    }
-
-    getCoolingThresholdTemperature(callback) {
-        this.log('Getting Heating Threshold');
-        return callback(null, this.CoolingThresholdTemperature);
-    }
-
-    setCoolingThresholdTemperature(value, callback) {
-        if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
-            value = this.cToF(value);
-        }
-
-        this.log('Setting Target Heat Threshold to: ', value);
-        this.CoolingThresholdTemperature = value;
         return callback(null);
     }
 
@@ -277,27 +354,6 @@ class VRC700Regulator {
         return callback(null);
     }
 
-    getCurrentRelativeHumidity(callback) {
-        var error;
-        this.log('Get humidity unsupported');
-        error = "Get humidity unsupported";
-        return callback(error);
-    }
-
-    getTargetRelativeHumidity(callback) {
-        var error;
-        this.log('Get humidity unsupported');
-        error = "Get humidity unsupported";
-        return callback(error);
-    }
-
-    setTargetRelativeHumidity(value, callback) {
-        var error;
-        this.log('Set humidity unsupported');
-        error = "Set humidity unsupported";
-        return callback(error);
-    }
-
     getName(callback) {
         var error;
         this.log('getName :', this.name);
@@ -305,9 +361,9 @@ class VRC700Regulator {
         return callback(error, this.name);
     }
 
-    createRegulatorService(subtype) {
+    createRegulatorService() {
 
-        var regulator = new Service.Thermostat(this.name, subtype);
+        var regulator = new Service.Thermostat(this.name);
 
         regulator
             .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
@@ -337,10 +393,21 @@ class VRC700Regulator {
             .on('get', this.getHeatingThresholdTemperature.bind(this))
             .on('set', this.setHeatingThresholdTemperature.bind(this));
 
-        regulator
-            .getCharacteristic(Characteristic.CoolingThresholdTemperature)
-            .on('get', this.getCoolingThresholdTemperature.bind(this))
-            .on('set', this.setCoolingThresholdTemperature.bind(this));
+        Characteristic.TargetNightTemperature = function() {
+            Characteristic.call(this, 'Target Night Temperature', '2DB4D12B-B2DD-42EA-A469-A23051F478D7');
+            this.setProps({
+                format: Characteristic.Formats.FLOAT,
+                unit: Characteristic.Units.CELSIUS,
+                maxValue: 30,
+                minValue: 5,
+                minStep: 0.5,
+                perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+            });
+            this.value = this.getDefaultValue();
+        };
+            
+        inherits(Characteristic.TargetNightTemperature, Characteristic);    
+        Characteristic.TargetNightTemperature.UUID = '2DB4D12B-B2DD-42EA-A469-A23051F478D7';
 
         regulator
             .getCharacteristic(Characteristic.Name)
@@ -351,29 +418,37 @@ class VRC700Regulator {
             .setProps({
                 maxValue: 100,
                 minValue: 0,
-                minStep: 1
+                minStep: 0.1
             });
 
         regulator
             .getCharacteristic(Characteristic.TargetTemperature)
             .setProps({
-                maxValue: this.maxTemp,
-                minValue: this.minTemp,
-                minStep: 1
+                maxValue: 30,
+                minValue: 5,
+                minStep: 0.5
+            });
+
+        regulator
+            .getCharacteristic(Characteristic.TargetNightTemperature)
+            .setProps({
+                maxValue: 30,
+                minValue: 5,
+                minStep: 0.5
             });
 
         regulator
             .getCharacteristic(Characteristic.HeatingThresholdTemperature)
             .setProps({
-                maxValue: 35,
-                minValue: 0,
-                minStep: 1
+                maxValue: 30,
+                minValue: 5,
+                minStep: 0.5
             });
 
         regulator
             .getCharacteristic(Characteristic.CoolingThresholdTemperature)
             .setProps({
-                maxValue: 35,
+                maxValue: 30,
                 minValue: 0,
                 minStep: 1
             });
@@ -383,6 +458,14 @@ class VRC700Regulator {
     }
 
 
+}
+
+function cToF(value) {
+    return Number((9 * value / 5 + 32).toFixed(0));
+}
+
+function fToC(value) {
+    return Number((5 * (value - 32) / 9).toFixed(2));
 }
 
 export default VRC700Thermostat;

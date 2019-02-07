@@ -51,7 +51,6 @@ class VaillantVRC9xxPlatform {
     }
 
     facilitiesEvent(facility) {
-
         const name = facility.name
         const serial = facility.serialNumber
         const firmware = facility.firmwareVersion
@@ -61,21 +60,24 @@ class VaillantVRC9xxPlatform {
 
         const config_data = {
             name,
-            facility_serial: serial,
+            serial,
             firmware,
-            uuid
+            uuid,
+            sensors: facility.sensors,
+            regulators: facility.regulators
         }
 
-        var accessory = new VRC700Thermostat(this.api, this.log, config_data);
+        var accessory = new VRC700Thermostat(this.api, this.log, config_data, this);
         this.registerAccessories([accessory]);
+    }
 
+    registerObserver(serial, path, observer) {
+        return this.Poller.subscribe(serial, path, observer)
     }
 
     accessories(callback) {
         this.log("Received callback");
         this.registerAccessories = callback;
     }
-
-    
 
 }

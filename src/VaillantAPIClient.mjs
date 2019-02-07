@@ -2,6 +2,7 @@ import _ from 'lodash'
 import tough from 'tough-cookie'
 import cookieJarSupport from 'axios-cookiejar-support'
 import axios from 'axios' 
+
 const qwest = cookieJarSupport(axios)
 
 class VRC9xxAPI {
@@ -104,13 +105,37 @@ class VRC9xxAPI {
              this.getStatus(facilitySerial), this.getGateway(facilitySerial)]
         )
 
-        const state = _.zipObject(["system", "info", "status", "gateway"], response);
-        return state
+        const info = _.zipObject(["system", "measures", "status", "gateway"], response);
+        
+        // index zones by id
+        info.system.zones = _.zipObject(
+            info.system.zones.map(zone => zone._id),
+            info.system.zones
+        )
+
+        // index dwh by id
+        info.system.dhw = _.zipObject(
+            info.system.dhw.map(dhw => dhw._id),
+            info.system.dhw
+        )
+
+        let devices = info.measures.devices
+        Object.keys(info.system.dhw).forEach(key => {
+
+            let measures
+            let reports = devices.find(item => item._id === key)
+            if (reports) {
+                measures = reports.reports.filter(item => item.measurement_category === "TEMPERATURE")
+            }                    
+                                
+            info.system.dhw[key].configuration = measures
+        })
+
+        return info
     }
 
     async setTargetTemperature(facilitySerial, zone, temperature) {
 
-        const zone = "Control_ZO1"
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/configuration/setpoint_temperature`;
 
         const data = {
@@ -123,11 +148,22 @@ class VRC9xxAPI {
 
     async setTargetReducedTemperature(facilitySerial, zone, temperature) {
 
-        const zone = "Control_ZO1"
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/configuration/setback_temperature`;
 
         const data = {
             setback_temperature: temperature
+        }
+
+        await this.query(url, 'put', data)
+
+    }
+
+    async setHeatingMode(facilitySerial, zone, mode) {
+
+        const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/configuration/mode`;
+
+        const data = {
+            mode
         }
 
         await this.query(url, 'put', data)
