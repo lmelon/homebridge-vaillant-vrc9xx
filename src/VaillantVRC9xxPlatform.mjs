@@ -68,8 +68,10 @@ class VaillantVRC9xxPlatform {
             dhw_regulators: facility.dhw_regulators
         }
 
-        var accessory = new VRC700Thermostat(this.api, this.log, config_data, this);
-        this.registerAccessories([accessory]);
+        let thermostat = new VRC700Thermostat(this.api, this.log, config_data, this);
+        let accessories = thermostat.getAccessories()
+
+        this.registerAccessories(accessories);
     }
 
     registerObserver(serial, path, observer) {
