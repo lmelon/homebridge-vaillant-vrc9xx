@@ -13,6 +13,11 @@ class VaillantAPIPoller extends EventEmitter {
         super();
 
         this.config = config
+        this.polling = config.polling ? config.polling : 60
+        if (this.polling < 30) { // minimum value
+            this.polling = 30
+        }
+
         this.log = log
 
         this.api = new VRC9xxAPI(this.createCredential(), log);
@@ -209,7 +214,7 @@ class VaillantAPIPoller extends EventEmitter {
 
         this.notifyAll(serial)
 
-        this.timer = setTimeout(() => { this.refreshFacility(serial) }, this.config.polling * 1000)
+        this.timer = setTimeout(() => { this.refreshFacility(serial) }, this.polling * 1000)
         this.log(`Facility ${this.state[serial].facility.name} refreshed`)
     }
 

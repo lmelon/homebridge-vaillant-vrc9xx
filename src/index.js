@@ -1,3 +1,3 @@
 // boot strap ES6
-require = require('@std/esm')(module)
+require = require('esm')(module)
 module.exports = require('./VaillantVRC9xxPlatform.mjs')
