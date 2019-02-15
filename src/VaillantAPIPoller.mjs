@@ -64,7 +64,6 @@ class VaillantAPIPoller extends EventEmitter {
                 this.createOrUpdateFacility(facility)
             });
 
-            //setTimeout(this.refreshFacilities.bind(this), 5 * 60 * 1000)
         }
         catch {
             
