@@ -65,7 +65,7 @@ class VaillantAPIPoller extends EventEmitter {
             });
 
         }
-        catch {
+        catch (e) {
             
             setTimeout(this.refreshFacilities.bind(this), 30 * 1000)
 

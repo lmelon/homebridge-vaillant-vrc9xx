@@ -112,7 +112,7 @@ class VRC9xxAPI {
             const facilities = await this.query(url, 'get', null);
             return facilities.data.body.facilitiesList
         }
-        catch {
+        catch (e) {
             return null
         }
 
@@ -180,7 +180,7 @@ class VRC9xxAPI {
             return info
 
         }
-        catch {
+        catch (e) {
             return null
         }
         
