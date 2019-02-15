@@ -7,8 +7,7 @@
     "type": "git"
   },
   "main": "src/index.js",
-  "scripts": {
-  },
+  "scripts": {},
   "keywords": [
     "VRC900",
     "VRC920",

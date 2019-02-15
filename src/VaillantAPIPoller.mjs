@@ -32,10 +32,10 @@ class VaillantAPIPoller extends EventEmitter {
         this.emit(VAILLANT_POLLER_EVENTS.AUTHENTICATION, {success});
 
         if (success) {
-            let facilities = await this.api.getFacilities()
-            facilities.forEach(facility => {
-                this.createFacility(facility)
-            });
+            this.refreshFacilities()
+        } else {
+            // retry later
+            setTimeout(this.start.bind(this), 60000)
         }
     }
 
@@ -54,7 +54,27 @@ class VaillantAPIPoller extends EventEmitter {
         }
     }
 
-    async createFacility(facility) {
+    async refreshFacilities() {
+
+        try {
+            this.log("Refreshing list of facilities")
+
+            let facilities = await this.api.getFacilities()
+            facilities.forEach(facility => {
+                this.createOrUpdateFacility(facility)
+            });
+
+            //setTimeout(this.refreshFacilities.bind(this), 5 * 60 * 1000)
+        }
+        catch {
+            
+            setTimeout(this.refreshFacilities.bind(this), 30 * 1000)
+
+        }   
+
+    }
+
+    async createOrUpdateFacility(facility) {
 
         const serial = facility.serialNumber
         this.state[serial] = { facility }
@@ -207,15 +227,23 @@ class VaillantAPIPoller extends EventEmitter {
     }
 
     async refreshFacility(serial) {
-        let info = await this.api.getFullState(serial)
 
-        this.state[serial].current = info
-        this.state[serial].refresh = new Date()
+        try {
 
-        this.notifyAll(serial)
+            let info = await this.api.getFullState(serial)
+            this.state[serial].current = info
+            this.state[serial].refresh = new Date()
 
-        this.timer = setTimeout(() => { this.refreshFacility(serial) }, this.polling * 1000)
-        this.log(`Facility ${this.state[serial].facility.name} refreshed`)
+            this.notifyAll(serial)
+
+            this.log(`Facility ${this.state[serial].facility.name} refreshed`)
+        } catch (e) {
+
+            this.log("Error while refreshing facilities")
+        
+        } finally {
+            this.timer = setTimeout(() => { this.refreshFacility(serial) }, this.polling * 1000)
+        }
     }
 
     apiCallWrapper(callback) {

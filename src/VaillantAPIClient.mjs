@@ -11,6 +11,8 @@ class VRC9xxAPI {
         this.auth = data;
         this.log = log ? log : console.log;
         this.cookieJar = new tough.CookieJar();
+        this.commands = []
+        this.timer = null
     }
 
     async query(url, method, data) {
@@ -28,20 +30,55 @@ class VRC9xxAPI {
             query.data = data;
         }
 
-        try {
-            var resp = await qwest(query)
-            switch (resp.status) {
-                case 200:
-                    return resp;
-                default:
-                    return null;
+        var count = 0
+        while (count < 3) {
+
+            try {
+                const value = await this.executeQuery(query, count)
+                return value
+            } catch (e) {
+                count++
+                this.log(`Query failed (${count} times) retrying ...`)
             }
 
-        } catch (e) {
-            this.log(e);
-            return null;
-        }
+        }   
+        
+        return null
 
+    }
+
+    async executeQuery(query, retry) {
+
+        return new Promise((resolve, reject) => {
+
+            setTimeout(async () => {
+
+                try {
+                    var resp = await qwest(query)
+                    switch (resp.status) {
+                        case 200:
+                            resolve(resp);
+                        default:
+                            reject(resp.status);
+                    }
+        
+                } catch (e) {
+                    //this.log(e);
+                    return reject(e);
+                }
+
+            }, retry * 5000)
+        })
+    }
+
+    async queryBody(url, method, data) {
+        try {
+            const resp = await this.query(url, method, data)
+            return resp.data.body
+        }
+        catch {
+            return null
+        }
     }
 
     async logIn() {
@@ -51,91 +88,131 @@ class VRC9xxAPI {
 
         if (!this.auth.authToken) {
             var response = await this.query(url_authenticate, 'post', this.auth);
+            if (!response) {
+                return false;
+            }
             this.auth.authToken = response.data.body.authToken;
             this.password = this.auth.password;
             delete this.auth.password;
         }
 
         const resp = await this.query(url_authorize, 'post', this.auth)
+        if (!resp) {
+            return false;
+        }
+
         return (resp.status === 200)
 
     }
 
     async getFacilities() {
 
-        const url = "/facilities";
-        const facilities = await this.query(url, 'get', null);
-        return facilities.data.body.facilitiesList
+        try {
+            const url = "/facilities";
+            const facilities = await this.query(url, 'get', null);
+            return facilities.data.body.facilitiesList
+        }
+        catch {
+            return null
+        }
 
     }
 
     async getFullSystem(facilitySerial) {
-
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/`;
-        const system = await this.query(url, 'get', null);
-        return system.data.body
-
+        return await this.queryBody(url, 'get', null);
     }
 
     async getStatus(facilitySerial) {
-
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/status`;
-        const info = await this.query(url, 'get', null)
-        return info.data.body
+        return await this.queryBody(url, 'get', null)
     }
 
     async getEmfLiveReport(facilitySerial) {
-
         const url = `/facilities/${facilitySerial}/livereport/v1`;
-        const info = await this.query(url, 'get', null)
-        return info.data.body
+        return await this.queryBody(url, 'get', null)
     }
 
     async getGateway(facilitySerial) {
-
         const url = `/facilities/${facilitySerial}/public/v1/gatewayType`;
-        const info = await this.query(url, 'get', null);
-        return info.data.body
-
+        return await this.queryBody(url, 'get', null);
     }
 
     async getFullState(facilitySerial) {
-        const response = await Promise.all(
-            [this.getFullSystem(facilitySerial), this.getEmfLiveReport(facilitySerial), 
-             this.getStatus(facilitySerial), this.getGateway(facilitySerial)]
-        )
 
-        const info = _.zipObject(["system", "measures", "status", "gateway"], response);
-        
-        // index zones by id
-        info.system.zones = _.zipObject(
-            info.system.zones.map(zone => zone._id),
-            info.system.zones
-        )
+        try {
 
-        // index dwh by id
-        info.system.dhw = _.zipObject(
-            info.system.dhw.map(dhw => dhw._id),
-            info.system.dhw
-        )
-
-        let devices = info.measures.devices
-        Object.keys(info.system.dhw).forEach(key => {
-
-            let measures = []
-            let reports = devices.find(item => item._id === key)
-            if (reports) {
-                measures = reports.reports.filter(item => item.measurement_category === "TEMPERATURE")
-            }
-
-            info.system.dhw[key].configuration = _.zipObject(
-                measures.map(item => item._id),
-                measures
+            const response = await Promise.all(
+                [this.getFullSystem(facilitySerial), this.getEmfLiveReport(facilitySerial), 
+                 this.getStatus(facilitySerial), this.getGateway(facilitySerial)]
             )
+    
+            const info = _.zipObject(["system", "measures", "status", "gateway"], response);
+            
+            // index zones by id
+            info.system.zones = _.zipObject(
+                info.system.zones.map(zone => zone._id),
+                info.system.zones
+            )
+    
+            // index dwh by id
+            info.system.dhw = _.zipObject(
+                info.system.dhw.map(dhw => dhw._id),
+                info.system.dhw
+            )
+    
+            let devices = info.measures.devices
+            Object.keys(info.system.dhw).forEach(key => {
+    
+                let measures = []
+                let reports = devices.find(item => item._id === key)
+                if (reports) {
+                    measures = reports.reports.filter(item => item.measurement_category === "TEMPERATURE")
+                }
+    
+                info.system.dhw[key].configuration = _.zipObject(
+                    measures.map(item => item._id),
+                    measures
+                )
+    
+            })
+    
+            return info
 
-        })
+        }
+        catch {
+            return null
+        }
+        
+    }
 
-        return info
+    enqueueCommand(command) {
+
+        const index = _.findIndex(this.commands, (item) => { return item.url === command.url })
+        if (index >= 0) {
+            this.log("Similar command pending ... replacing")
+            this.commands[index] = command
+            return
+        }
+
+        this.commands.push(command)
+        
+        if (!this.timer) {
+            this.timer = setTimeout(this.processQueue.bind(this), 500)
+        }
+    
+    }
+
+    async processQueue() {
+
+        var command = this.commands.shift()
+        while (command) {
+            this.log("Processing command")
+            await this.query(command.url, command.method, command.data)
+            var command = this.commands.shift()
+        }
+
+        this.timer = null
     }
 
     async setTargetTemperature(facilitySerial, zone, temperature) {
@@ -146,8 +223,11 @@ class VRC9xxAPI {
             setpoint_temperature: temperature
         }
 
-        await this.query(url, 'put', data)
-
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put'
+        })
     }
 
     async setTargetDHWTemperature(facilitySerial, dhw, temperature) {
@@ -158,7 +238,11 @@ class VRC9xxAPI {
             temperature_setpoint: temperature
         }
 
-        await this.query(url, 'put', data)
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put'
+        })
 
     }
 
@@ -170,7 +254,11 @@ class VRC9xxAPI {
             setback_temperature: temperature
         }
 
-        await this.query(url, 'put', data)
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put'
+        })
 
     }
 
@@ -182,7 +270,11 @@ class VRC9xxAPI {
             mode
         }
 
-        await this.query(url, 'put', data)
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put'
+        })
 
     }
 
@@ -194,7 +286,11 @@ class VRC9xxAPI {
             operation_mode: mode
         }
 
-        await this.query(url, 'put', data)
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put'
+        })
 
     }
 

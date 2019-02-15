@@ -29,7 +29,7 @@ class VaillantVRC9xxPlatform {
         this.log = log
 
         // state
-        //this._accessories = []
+        this._accessories = {}
 
         // create API client & poller
         this.Poller = new VRC9xxAPIPoller(config.api, log);
@@ -54,6 +54,11 @@ class VaillantVRC9xxPlatform {
         const name = facility.name
         const serial = facility.serialNumber
 
+        if (this._accessories[serial]) {
+            // nothing to do, already known
+            return
+        }
+
         this.log(`New facility ${name} - ${serial}`)
         var uuid = this.api.hap.uuid.generate(serial);
 
@@ -71,7 +76,8 @@ class VaillantVRC9xxPlatform {
         let thermostat = new VRC700Thermostat(this.api, this.log, config_data, this);
         let accessories = thermostat.getAccessories()
 
-        this.registerAccessories(accessories);
+        this.registerAccessories(accessories)
+        this._accessories[serial] = thermostat
     }
 
     registerObserver(serial, path, observer) {
