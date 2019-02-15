@@ -76,7 +76,7 @@ class VRC9xxAPI {
             const resp = await this.query(url, method, data)
             return resp.data.body
         }
-        catch {
+        catch (e) {
             return null
         }
     }
