@@ -40,9 +40,13 @@ class VRC9xxAPI {
         }
 
         // try to logIn again
-        const result = await this.logIn()
-        if (result) {
-            return await this.executeQuery(query, 0)
+        try {
+            const result = await this.logIn()
+            if (result) {
+                return await this.executeQuery(query, 0)
+            }
+        } catch (e) {
+            this.log(`Relogin failed`)
         }
 
         return null
