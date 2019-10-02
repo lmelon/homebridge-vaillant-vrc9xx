@@ -41,8 +41,9 @@ class VRC9xxAPI {
 
         // try to logIn again
         try {
-            const result = await this.logIn()
+            const result = await this.logIn(true)
             if (result) {
+                this.log(`Relogin success`)
                 return await this.executeQuery(query, 0)
             }
         } catch (e) {
@@ -64,7 +65,7 @@ class VRC9xxAPI {
                             reject(resp.status)
                     }
                 } catch (e) {
-                    //this.log(e);
+                    this.log(e)
                     return reject(e)
                 }
             }, retry * 5000)
@@ -80,9 +81,14 @@ class VRC9xxAPI {
         }
     }
 
-    async logIn() {
+    async logIn(force = false) {
         const url_authenticate = '/account/authentication/v1/token/new'
         const url_authorize = '/account/authentication/v1/authenticate'
+
+        if (force) {
+            delete this.auth.authToken
+            this.auth.password = this.password
+        }
 
         if (!this.auth.authToken) {
             var response = await this.query(url_authenticate, 'post', this.auth)
