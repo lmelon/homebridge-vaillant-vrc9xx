@@ -100,7 +100,7 @@ class VRC9xxAPI {
         var auth = { ...this.authData }
         delete auth.password
 
-        const resp = await this.query(url_authorize, 'post', this.auth)
+        const resp = await this.query(url_authorize, 'post', auth)
         if (!resp) {
             return false
         }
