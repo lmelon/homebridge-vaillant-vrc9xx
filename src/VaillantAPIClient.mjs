@@ -7,7 +7,7 @@ const qwest = cookieJarSupport(axios)
 
 class VRC9xxAPI {
     constructor(data, log) {
-        this.auth = data
+        this.authData = data
         this.log = log ? log : console.log
         this.cookieJar = new tough.CookieJar()
         this.commands = []
@@ -86,19 +86,19 @@ class VRC9xxAPI {
         const url_authorize = '/account/authentication/v1/authenticate'
 
         if (force) {
-            delete this.auth.authToken
-            this.auth.password = this.password
+            delete this.authData.authToken
         }
 
-        if (!this.auth.authToken) {
-            var response = await this.query(url_authenticate, 'post', this.auth)
+        if (!this.authData.authToken) {
+            var response = await this.query(url_authenticate, 'post', this.authData)
             if (!response) {
                 return false
             }
-            this.auth.authToken = response.data.body.authToken
-            this.password = this.auth.password
-            delete this.auth.password
+            this.authData.authToken = response.data.body.authToken
         }
+
+        var auth = { ...this.authData }
+        delete auth.password
 
         const resp = await this.query(url_authorize, 'post', this.auth)
         if (!resp) {
