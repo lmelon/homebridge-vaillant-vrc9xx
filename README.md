@@ -70,7 +70,7 @@ After [Homebridge](https://github.com/nfarina/homebridge) has been installed:
 | name | The username used to connect the multiMatic app. I recommand creating a dedicated user for homebridge so that the plugin will never mess-up with your access. |
 | password | The password of this user |
 | device   | A unique identifier used to identify the "device". Just select any random sequence of number. |
-| polling | The polling interval (in seconds) the plugin uses to retrieve the state of the system. The communication between the cloud api and the VRC9xx module seems to occur every minute or so. So the default value is 60. The minimal value is 30 to avoid performing a Denial of Service attack on the API servers |
+| polling | The polling interval (in seconds) the plugin uses to retrieve the state of the system. The communication between the cloud api and the VRC9xx module seems to occur every minute or so. So the default value is 60. The minimal value is 30 to avoid performing a Denial-of-Service (DoS) attack on the API servers |
 
 ## How it works
 
@@ -88,19 +88,18 @@ The target shown depends on the heating state. The heater can be in 4 states: OF
 
 Two temperatures can be programmed one for the day and one for the night.
 
-In "OFF", "Day" or "Auto" mode, the target shown is the day temperature. This is the one you can control via the Home app.
-In "Reduced" (Night) mode, the target temperature shown/controlled is the night temperature.
+In "OFF", "Day" or "Auto" mode, the target shown is the day temperature. This is the one you can control via the Apple Home app. In "Reduced" (Night) mode, the target temperature shown/controlled is the night temperature.
 
-If you want to control these two temperature individually, try the EVE app. It exposed two individual settings.
+This is quite logical as you usually want to control the target temperation that is active now. If you want to control these two temperature individually, try the EVE app. It exposes two individual settings.
 
 ### Domestic Hot Water
 
-
+TBC
 
 
 ## Know limitations
 
-- Limited error handling. Although it has worked for me flawlessly for more than a month, you may have to restard the instance in case of trouble.
+- Limited error handling. Although it has worked for me quite long periods, sometimes the polling is broken and a restart is required. It is a stupid authentication issue. Just haven't found the time to fix it for now.
 - Incorrect status for domestic hotwater. I have not been able to find a way to determine for sure if the boiler is actually currently heating the water tank. I might implement a heuristic based on the planning though (see roadmap)
 - No support for Fan and Cooling
 - Only tested in my personnal configuration which is a VRC900 internet gateway, the VRC700 thermostat and the VC306 boiler and a water tank. 
