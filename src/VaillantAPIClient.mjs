@@ -279,8 +279,7 @@ class VRC9xxAPI {
         this.log(json)
     }
 
-    async getZoneConfig(facilitySerial, zone) {
-        const zone = 'Control_ZO1'
+    async getZoneConfig(facilitySerial, zone = 'Control_ZO1') {
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}`
         const info = await this.query(url, 'get', null)
 
@@ -294,8 +293,7 @@ class VRC9xxAPI {
         return zones.data.body
     }
 
-    async getDWHTimeprogram(facilitySerial, dhwIdentifier) {
-        const dhwIdentifier = 'Control_DHW'
+    async getDWHTimeprogram(facilitySerial, dhwIdentifier = 'Control_DHW') {
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/dhw/${dhwIdentifier}/hotwater/timeprogram`
 
         var timeprog = await this.query(url, 'get', null)
@@ -303,8 +301,7 @@ class VRC9xxAPI {
         this.log(json)
     }
 
-    async getZoneHeatingConfig(facilitySerial, zone) {
-        const zone = 'Control_ZO1'
+    async getZoneHeatingConfig(facilitySerial, zone = 'Control_ZO1') {
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/configuration`
         const info = await this.query(url, 'get', null)
 
@@ -323,8 +320,7 @@ class VRC9xxAPI {
         this.log(json)
     }
 
-    async getZoneTimeprogram(facilitySerial, zone) {
-        var zone = 'Control_ZO1'
+    async getZoneTimeprogram(facilitySerial, zone = 'Control_ZO1') {
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/timeprogram`
 
         var timeprog = await this.query(url, 'get', null)
@@ -332,8 +328,7 @@ class VRC9xxAPI {
         this.log(json)
     }
 
-    async setZoneTimeprogram() {
-        const zone = 'Control_ZO1'
+    async setZoneTimeprogram(zone = 'Control_ZO1') {
         const timeschedule = await require('./ts.json')
         const url = `/facilities/${config.facilitySerial}/systemcontrol/v1/zones/${zone}/heating/timeprogram`
 
