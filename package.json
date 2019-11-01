@@ -22,7 +22,7 @@
         "axios": "^0.18.1",
         "axios-cookiejar-support": "^0.4.2",
         "esm": "^3.2.4",
-        "lodash": "^4.17.11",
+        "lodash": "^4.17.13",
         "tough-cookie": "^3.0.0"
     },
     "engines": {
