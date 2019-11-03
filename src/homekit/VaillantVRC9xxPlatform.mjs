@@ -75,6 +75,7 @@ class VaillantVRC9xxPlatform {
             sensors: facility.sensors,
             regulators: facility.regulators,
             dhw_regulators: facility.dhw_regulators,
+            switches: facility.switches,
         }
 
         let thermostat = new VRC700Thermostat(this.api, this.log, config_data, this)

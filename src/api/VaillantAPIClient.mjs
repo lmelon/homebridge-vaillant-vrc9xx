@@ -163,7 +163,7 @@ class VRC9xxAPI {
             }
         })
 
-        info.meta = { pending, timestamp: new Date(recent), age: (now - recent) / 60000 }
+        info.meta = { pending, timestamp: recent, age: now - recent, old: now - recent > 10 }
 
         return info
     }

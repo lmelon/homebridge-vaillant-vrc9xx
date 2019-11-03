@@ -100,18 +100,27 @@ class VaillantAPIPoller extends EventEmitter {
 
         try {
             this.state[serial].current = await this.api.getFullState(serial)
-            this.state[serial].refresh = new Date()
+            this.state[serial].refresh = new Date().getTime()
+
+            this.log(`Facility ${name} -- ${serial} refreshed`)
+        } finally {
+            // compute if data is stalled
+            const now = new Date().getTime()
+            const hkRefresh = this.state[serial].refresh
+            const vr900Refresh = this.state[serial].current.meta.timestamp
+            this.state[serial].current.meta.old = now - hkRefresh > 60 * 1000 * 3 || now - vr900Refresh > 60 * 1000 * 5
 
             // notify observers
             this.notifyAll(serial)
 
-            this.log(`Facility ${name} -- ${serial} refreshed`)
-        } finally {
+            // program next run
             this.timers[serial] = setTimeout(() => {
                 try {
                     this.getFacilityState(serial)
                 } catch (e) {
                     this.log(`Error while refreshing facility ${name} -- ${serial}`)
+                    this.log(e)
+                    this.log(JSON.stringify(e))
                 }
             }, this.polling * 1000)
         }

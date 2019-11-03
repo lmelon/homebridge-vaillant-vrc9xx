@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-export function buildFacilityDescriptor(descriptor, api) {
+export function buildFacilityDescriptor(vr9xxState, api) {
     function buildSensorsDescriptor(serial, info) {
         let sensors = []
 
@@ -151,14 +151,39 @@ export function buildFacilityDescriptor(descriptor, api) {
         return regulators
     }
 
-    const serial = descriptor.facility.serialNumber
+    function buildSwitchesDescriptor(serial, info) {
+        let switches = []
+
+        const name = info.facility.name
+        const pendingSwitch = {
+            type: 'SWITCH',
+            name: 'Pending - ' + name,
+            serial,
+            path: `meta.pending`,
+        }
+        switches.push(pendingSwitch)
+
+        const staleSwitch = {
+            type: 'SWITCH',
+            name: 'Stale - ' + name,
+            serial,
+            path: `meta.old`,
+        }
+
+        switches.push(staleSwitch)
+
+        return switches
+    }
+
+    const serial = vr9xxState.facility.serialNumber
 
     let hkDescriptor = {
-        ...descriptor.facility,
-        gateway: descriptor.current.gateway.gatewayType,
-        sensors: buildSensorsDescriptor(serial, descriptor.current),
-        regulators: buildRegulatorDescriptor(serial, descriptor.current, api),
-        dhw_regulators: buildDHWRegulatorDescriptor(serial, descriptor.current, api),
+        ...vr9xxState.facility,
+        gateway: vr9xxState.current.gateway.gatewayType,
+        sensors: buildSensorsDescriptor(serial, vr9xxState.current),
+        regulators: buildRegulatorDescriptor(serial, vr9xxState.current, api),
+        dhw_regulators: buildDHWRegulatorDescriptor(serial, vr9xxState.current, api),
+        switches: buildSwitchesDescriptor(serial, vr9xxState),
     }
 
     return hkDescriptor

@@ -2,8 +2,6 @@ import _ from 'lodash'
 import util from 'util'
 const inherits = util.inherits
 
-const QUICK_MODES = ['Party', 'Day in', 'Day out']
-
 let Accessory, Characteristic, Service
 
 class VRC700Thermostat {
@@ -21,14 +19,9 @@ class VRC700Thermostat {
         this.sensors = config.sensors
         this.regulators = config.regulators
         this.dhw_regulators = config.dhw_regulators
+        this.switches = config.switches
 
         // state
-        this.quickModeSwitches = _.zipObject(
-            QUICK_MODES,
-            QUICK_MODES.map(() => {
-                return { value: false }
-            })
-        )
         this._accessories = this.createAccessories()
     }
 
@@ -37,43 +30,18 @@ class VRC700Thermostat {
     }
 
     createAccessories() {
-        const accessories = [
-            ...this.createRegulators(),
-            ...this.createSensors(),
-            //...this.getQuickActionsSwitches()
-        ]
-
+        const accessories = [...this.createRegulators(), ...this.createSensors(), ...this.createSwitches()]
         return accessories
     }
 
-    getQuickActionsSwitches() {
-        var switches = []
-        QUICK_MODES.forEach(item => {
-            var swi = new Service.Switch(item, item)
-            swi.getCharacteristic(Characteristic.On)
-                .on('set', (value, callback) => {
-                    this.setQuickMode(item, value, callback)
-                })
-                .updateValue(false)
-
-            switches.push(swi)
-            this.quickModeSwitches[item].service = swi
+    createSwitches() {
+        let accessories = []
+        this.switches.forEach(descr => {
+            let accessory = new VRC700Switch(this.config, descr, this.platform, this.log)
+            accessories.push(accessory)
         })
 
-        return switches
-    }
-
-    setQuickMode(mode, value, callback) {
-        this.log('Setting Current mode: ', mode, value)
-
-        QUICK_MODES.forEach(item => {
-            this.quickModeSwitches[item].value = mode === item && value
-            this.quickModeSwitches[item].service
-                .getCharacteristic(Characteristic.On)
-                .updateValue(this.quickModeSwitches[item].value)
-        })
-
-        return callback(null)
+        return accessories
     }
 
     createSensors() {
@@ -155,6 +123,40 @@ class VRC700Accessory {
     }
 }
 
+class VRC700Switch extends VRC700Accessory {
+    constructor(config, desc, platform) {
+        super(config, desc, platform)
+
+        this.name = desc.name
+        this.currentValue = false
+
+        platform.registerObserver(desc.serial, desc.path, this.updateCurrentValue.bind(this))
+    }
+
+    getCurrentValue(callback) {
+        return callback(
+            null,
+            this.currentValue
+                ? Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
+                : Characteristic.ContactSensorState.CONTACT_DETECTED
+        )
+    }
+
+    updateCurrentValue(value) {
+        this.currentValue = value.current
+    }
+
+    createAccessoryService() {
+        let service = new Service.ContactSensor(this.name, this.name)
+        service
+            .setCharacteristic(Characteristic.Name, this.name)
+            .getCharacteristic(Characteristic.ContactSensorState)
+            .on('get', this.getCurrentValue.bind(this))
+
+        return service
+    }
+}
+
 class VRC700TemperatureSensor extends VRC700Accessory {
     constructor(config, desc, platform) {
         super(config, desc, platform)
@@ -166,11 +168,6 @@ class VRC700TemperatureSensor extends VRC700Accessory {
     }
 
     getCurrentTemperature(callback) {
-        //this.log('Getting Current Temperature:', this.name);
-        return callback(null, this.currentTemperature)
-    }
-
-    getTargetTemperature(callback) {
         //this.log('Getting Current Temperature:', this.name);
         return callback(null, this.currentTemperature)
     }
