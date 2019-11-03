@@ -1,14 +1,20 @@
 import _ from 'lodash'
 import util from 'util'
+import historyFactory from 'fakegato-history'
+import moment from 'moment'
+import homebridgeLib from 'homebridge-lib'
+
 const inherits = util.inherits
 
-let Accessory, Characteristic, Service
+let Accessory, Characteristic, Service, HistoryService, Eve
 
 class VRC700Thermostat {
     constructor(api, log, config, platform) {
         Accessory = api.hap.Accessory
         Characteristic = api.hap.Characteristic
         Service = api.hap.Service
+        HistoryService = historyFactory(api)
+        Eve = new homebridgeLib.EveHomeKitTypes(api)
 
         //Homebridge Config.
         this.log = log
@@ -71,7 +77,7 @@ class VRC700Thermostat {
 }
 
 class VRC700Accessory {
-    constructor(config, desc, platform) {
+    constructor(config, desc, platform, log) {
         this.name = config.name || 'VRC700'
         this.manufacturer = 'Vaillant'
         this.model = config.gateway
@@ -79,7 +85,7 @@ class VRC700Accessory {
         this.serial = config.serial
 
         this._services = undefined
-        this.accessoryService = undefined
+        this.log = log
     }
 
     getServices() {
@@ -111,21 +117,24 @@ class VRC700Accessory {
     }
 
     createServices() {
-        this.accessoryService = this.createAccessoryService()
+        var services = [this.getAccessoryInformationService(), this.getBridgingStateService()]
+        var accessoryService = this.createAccessoryService()
 
-        const services = [this.getAccessoryInformationService(), this.getBridgingStateService(), this.accessoryService]
+        if (Array.isArray(accessoryService)) {
+            accessoryService.forEach(serv => {
+                services.push(serv)
+            })
+        } else {
+            services.push(accessoryService)
+        }
 
         return services
-    }
-
-    createAccessoryService() {
-        return []
     }
 }
 
 class VRC700Switch extends VRC700Accessory {
-    constructor(config, desc, platform) {
-        super(config, desc, platform)
+    constructor(config, desc, platform, log) {
+        super(config, desc, platform, log)
 
         this.name = desc.name
         this.currentValue = false
@@ -158,13 +167,18 @@ class VRC700Switch extends VRC700Accessory {
 }
 
 class VRC700TemperatureSensor extends VRC700Accessory {
-    constructor(config, desc, platform) {
-        super(config, desc, platform)
+    constructor(config, desc, platform, log) {
+        super(config, desc, platform, log)
 
         this.name = desc.name
-        this.currentTemperature = 2
+        this.displayName = desc.name
 
-        platform.registerObserver(desc.serial, desc.path, this.updateCurrentTemperature.bind(this))
+        this.currentTemperature = 2
+        this.serial = desc.id
+
+        this.platform = platform
+
+        this.platform.registerObserver(desc.serial, desc.path, this.updateCurrentTemperature.bind(this))
     }
 
     getCurrentTemperature(callback) {
@@ -173,25 +187,35 @@ class VRC700TemperatureSensor extends VRC700Accessory {
     }
 
     updateCurrentTemperature(value) {
+        this.log('Updating Current Temperature from/to :', this.currentTemperature, value.current)
         this.currentTemperature = value.current
+
+        const entry = { time: moment().unix(), temp: this.currentTemperature }
+        this.loggingService.addEntry(entry)
     }
 
     createAccessoryService() {
-        let service = new Service.TemperatureSensor(this.name, this.name)
+        let service = new Eve.Services.TemperatureSensor(this.name, this.name)
         service
             .setCharacteristic(Characteristic.Name, this.name)
             .getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getCurrentTemperature.bind(this))
 
-        return service
+        const config = {
+            storage: 'fs',
+            path: this.platform.api.user.storagePath() + '/accessories',
+            filename: 'history_' + this.serial + '.json',
+        }
+        this.loggingService = new HistoryService('weather', this, config)
+
+        return [service, this.loggingService]
     }
 }
 
 class VRC700HeaterRegulator extends VRC700Accessory {
     constructor(config, desc, platform, log) {
-        super(config, desc, platform)
+        super(config, desc, platform, log)
 
-        this.log = log
         this.name = desc.name
 
         //State
@@ -542,15 +566,16 @@ class VRC700HeaterRegulator extends VRC700Accessory {
             .on('get', this.getTargetDayTemperature.bind(this))
             .on('set', this.setTargetDayTemperature.bind(this))
 
+        this.accessoryService = regulatorService
+
         return regulatorService
     }
 }
 
 class VRC700HotWaterRegulator extends VRC700Accessory {
     constructor(config, desc, platform, log) {
-        super(config, desc, platform)
+        super(config, desc, platform, log)
 
-        this.log = log
         this.name = desc.name
 
         //State
@@ -766,6 +791,8 @@ class VRC700HotWaterRegulator extends VRC700Accessory {
             minValue: 30,
             minStep: 1,
         })
+
+        this.accessoryService = regulator
 
         return regulator
     }

@@ -15,6 +15,7 @@ export function buildFacilityDescriptor(vr9xxState, api) {
                 name: 'Inside - ' + zone.configuration.name,
                 serial,
                 path: `system.zones.${key}.configuration.inside_temperature`,
+                id: `${serial}-${key}-inside_temperature`,
             }
 
             sensors.push(sensor)
@@ -28,6 +29,7 @@ export function buildFacilityDescriptor(vr9xxState, api) {
                 name: 'Outside Temperature',
                 serial,
                 path: outside_temp_path,
+                id: `${serial}-outside_temperature`,
             })
         }
 
@@ -43,6 +45,7 @@ export function buildFacilityDescriptor(vr9xxState, api) {
                     name: dhw_zone.configuration[conf].name,
                     serial,
                     path: `system.dhw.${key}.configuration.${conf}.value`,
+                    id: `${serial}-${key}-dwh_temperature`,
                 }
 
                 sensors.push(sensor)
