@@ -1,188 +1,184 @@
 import _ from 'lodash'
-import tough from 'tough-cookie'
-import cookieJarSupport from 'axios-cookiejar-support'
-import axios from 'axios'
+import { API_COMMANDS } from './VaillantAPICommands.mjs'
+import { HTTPClient } from './HttpClient.mjs'
 
-const qwest = cookieJarSupport(axios)
+const BASE_URL = 'https://smart.vaillant.com/mobile/api/v4/'
 
 class VRC9xxAPI {
     constructor(data, log) {
-        this.authData = data
         this.log = log ? log : console.log
-        this.cookieJar = new tough.CookieJar()
-        this.commands = []
-        this.timer = null
+        this.httpClient = new HTTPClient(BASE_URL, this.log)
+
+        this.config = {
+            authData: data,
+        }
+
+        this.state = {
+            authenticated: false,
+            pendingCommands: [],
+            timer: undefined,
+        }
     }
 
-    async query(url, method, data) {
-        const query = {
-            url,
-            method,
-            jar: this.cookieJar,
-            withCredentials: true,
-            type: 'json',
-            baseURL: 'https://smart.vaillant.com/mobile/api/v4/',
+    async query(command) {
+        if (!command.unauthenticated && !this.state.authenticated) {
+            await this.logIn(true)
         }
 
-        if (data) {
-            query.data = data
-        }
-
-        var count = 0
-        while (count < 3) {
-            try {
-                const value = await this.executeQuery(query, count)
-                return value
-            } catch (e) {
-                count++
-                this.log(`Query failed (${count} times) retrying ...`)
-            }
-        }
-
-        // try to logIn again
         try {
-            const result = await this.logIn(true)
-            if (result) {
-                this.log(`Relogin success`)
-                return await this.executeQuery(query, 0)
-            }
+            const resp = await this.httpClient.execute(command)
+            return resp.data ? resp.data : resp
         } catch (e) {
-            this.log(`Relogin failed`)
+            return this.handleError(e, command)
         }
-
-        return null
     }
 
-    async executeQuery(query, retry) {
-        return new Promise((resolve, reject) => {
-            setTimeout(async () => {
-                try {
-                    var resp = await qwest(query)
-                    switch (resp.status) {
-                        case 200:
-                            resolve(resp)
-                        default:
-                            reject(resp.status)
-                    }
-                } catch (e) {
-                    this.log(e)
-                    return reject(e)
-                }
-            }, retry * 5000)
+    handleError(e, command) {
+        if (e.response) {
+            if (e.response.status === 401) {
+                this.state.authenticated = false
+            }
+
+            this.log({
+                status: e.response.status,
+                statusText: e.response.statusText,
+                headers: e.response.headers,
+                //data: JSON.stringify(resp.data, null, '  '),
+            })
+        }
+
+        throw e
+    }
+
+    handleResponse(resp) {
+        this.log({
+            status: resp.status,
+            statusText: resp.statusText,
+            //headers: resp.headers,
+            //data: JSON.stringify(resp.data, null, '  '),
         })
-    }
 
-    async queryBody(url, method, data) {
-        try {
-            const resp = await this.query(url, method, data)
-            return resp.data.body
-        } catch (e) {
-            return null
-        }
+        return resp.data
     }
 
     async logIn(force = false) {
-        const url_authenticate = '/account/authentication/v1/token/new'
-        const url_authorize = '/account/authentication/v1/authenticate'
-
         if (force) {
-            delete this.authData.authToken
+            this.httpClient = new HTTPClient(BASE_URL, this.log)
+            delete this.state.authData
         }
 
-        if (!this.authData.authToken) {
-            var response = await this.query(url_authenticate, 'post', this.authData)
-            if (!response) {
-                return false
+        if (!this.state.authData) {
+            const response = await this.query(API_COMMANDS.LOGIN(this.config.authData))
+
+            this.state.authData = {
+                smartphoneId: this.config.authData.smartphoneId,
+                username: this.config.authData.username,
+                authToken: response.body.authToken,
             }
-            this.authData.authToken = response.data.body.authToken
         }
 
-        var auth = { ...this.authData }
-        delete auth.password
+        await this.query(API_COMMANDS.AUTHORIZE(this.state.authData))
 
-        const resp = await this.query(url_authorize, 'post', auth)
-        if (!resp) {
-            return false
-        }
-
-        return resp.status === 200
+        this.state.authenticated = true
     }
 
     async getFacilities() {
-        try {
-            const url = '/facilities'
-            const facilities = await this.query(url, 'get', null)
-            return facilities.data.body.facilitiesList
-        } catch (e) {
-            return null
-        }
+        this.log('Get all facilities ...')
+        const resp = await this.query(API_COMMANDS.GET_ALL_FACILITIES)
+        return resp.body.facilitiesList
     }
 
     async getFullSystem(facilitySerial) {
-        const url = `/facilities/${facilitySerial}/systemcontrol/v1/`
-        return await this.queryBody(url, 'get', null)
+        return await this.query(API_COMMANDS.GET_FULL_SYSTEM_FOR_FACILITY(facilitySerial))
     }
 
     async getStatus(facilitySerial) {
-        const url = `/facilities/${facilitySerial}/systemcontrol/v1/status`
-        return await this.queryBody(url, 'get', null)
+        return await this.query(API_COMMANDS.GET_STATUS_FOR_FACILITY(facilitySerial))
     }
 
     async getEmfLiveReport(facilitySerial) {
-        const url = `/facilities/${facilitySerial}/livereport/v1`
-        return await this.queryBody(url, 'get', null)
+        return await this.query(API_COMMANDS.GET_LIVE_REPORT_FOR_FACILITY(facilitySerial))
     }
 
     async getGateway(facilitySerial) {
-        const url = `/facilities/${facilitySerial}/public/v1/gatewayType`
-        return await this.queryBody(url, 'get', null)
+        return await this.query(API_COMMANDS.GET_GATEWAY_FOR_FACILITY(facilitySerial), null)
     }
 
     async getFullState(facilitySerial) {
-        try {
-            const response = await Promise.all([
-                this.getFullSystem(facilitySerial),
-                this.getEmfLiveReport(facilitySerial),
-                this.getStatus(facilitySerial),
-                this.getGateway(facilitySerial),
-            ])
+        const response = await Promise.all([
+            this.getFullSystem(facilitySerial),
+            this.getEmfLiveReport(facilitySerial),
+            this.getStatus(facilitySerial),
+            this.getGateway(facilitySerial),
+        ])
 
-            const info = _.zipObject(['system', 'measures', 'status', 'gateway'], response)
+        const bodies = response.map(it => {
+            return it.body
+        })
 
-            // index zones by id
-            info.system.zones = _.zipObject(info.system.zones.map(zone => zone._id), info.system.zones)
+        const metas = response.map(it => {
+            return it.meta
+        })
 
-            // index dwh by id
-            info.system.dhw = _.zipObject(info.system.dhw.map(dhw => dhw._id), info.system.dhw)
+        // build main object
+        const info = _.zipObject(['system', 'measures', 'status', 'gateway'], bodies)
 
-            let devices = info.measures.devices
-            Object.keys(info.system.dhw).forEach(key => {
-                let measures = []
-                let reports = devices.find(item => item._id === key)
-                if (reports) {
-                    measures = reports.reports.filter(item => item.measurement_category === 'TEMPERATURE')
-                }
+        // index zones by id
+        info.system.zones = _.zipObject(info.system.zones.map(zone => zone._id), info.system.zones)
 
-                info.system.dhw[key].configuration = _.zipObject(measures.map(item => item._id), measures)
-            })
+        // index dwh by id
+        info.system.dhw = _.zipObject(info.system.dhw.map(dhw => dhw._id), info.system.dhw)
 
-            return info
-        } catch (e) {
-            return null
-        }
+        // isolate temperature measures
+        let devices = info.measures.devices
+        Object.keys(info.system.dhw).forEach(key => {
+            let measures = []
+            let reports = devices.find(item => item._id === key)
+            if (reports) {
+                measures = reports.reports.filter(item => item.measurement_category === 'TEMPERATURE')
+            }
+
+            info.system.dhw[key].configuration = _.zipObject(measures.map(item => item._id), measures)
+        })
+
+        // look for stale data
+        var pending = false
+        var recent = 0
+        var now = new Date().getTime() - 60000 * new Date().getTimezoneOffset()
+
+        metas.forEach(meta => {
+            if (meta.resourceState) {
+                meta.resourceState.forEach(item => {
+                    if (item.state !== 'SYNCED') {
+                        pending = true
+                    }
+
+                    var time = item.timestamp
+                    if (time.toString().length < 13) {
+                        time *= 1000
+                    }
+
+                    recent = Math.max(recent, time)
+                })
+            }
+        })
+
+        info.meta = { pending, timestamp: new Date(recent), age: (now - recent) / 60000 }
+
+        return info
     }
 
     enqueueCommand(command) {
-        const index = _.findIndex(this.commands, item => {
+        const index = _.findIndex(this.state.pendingCommands, item => {
             return item.url === command.url
         })
         if (index >= 0) {
             this.log('Similar command pending ... replacing')
-            this.commands[index] = command
+            this.state.pendingCommands[index] = command
             return
         }
 
-        this.commands.push(command)
+        this.state.pendingCommands.push(command)
 
         if (!this.timer) {
             this.timer = setTimeout(this.processQueue.bind(this), 500)
@@ -190,11 +186,11 @@ class VRC9xxAPI {
     }
 
     async processQueue() {
-        var command = this.commands.shift()
+        var command = this.state.pendingCommands.shift()
         while (command) {
             this.log('Processing command')
-            await this.query(command.url, command.method, command.data)
-            var command = this.commands.shift()
+            await this.query(command)
+            var command = this.state.pendingCommands.shift()
         }
 
         this.timer = null

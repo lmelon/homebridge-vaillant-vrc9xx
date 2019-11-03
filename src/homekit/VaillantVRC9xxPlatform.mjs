@@ -1,12 +1,14 @@
 'use strict'
 
-import packageFile from '../package.json'
+import packageFile from '../../package.json'
 const VERSION = packageFile.version
 const PLUGIN_NAME = packageFile.name
 const FRIENDLY_NAME = 'VaillantVRC9xx'
 
 import VRC700Thermostat from './VRC700Thermostat.mjs'
-import VRC9xxAPIPoller, { VAILLANT_POLLER_EVENTS } from './VaillantAPIPoller.mjs'
+import VRC9xxAPI from '../api/VaillantAPIClient.mjs'
+import VRC9xxAPIPoller, { VAILLANT_POLLER_EVENTS } from '../api/VaillantAPIPoller.mjs'
+import { buildFacilityDescriptor } from './HomeKitDescriptor.mjs'
 
 export default homebridge => {
     homebridge.registerPlatform(PLUGIN_NAME, FRIENDLY_NAME, VaillantVRC9xxPlatform, true)
@@ -30,11 +32,17 @@ class VaillantVRC9xxPlatform {
         this._accessories = {}
 
         // create API client & poller
-        this.Poller = new VRC9xxAPIPoller(config.api, log)
-        this.Poller.on(VAILLANT_POLLER_EVENTS.AUTHENTICATION, this.authenticatedEvent.bind(this)).on(
-            VAILLANT_POLLER_EVENTS.FACILITIES,
-            this.facilitiesEvent.bind(this)
+        this.VaillantAPI = new VRC9xxAPI(
+            {
+                smartphoneId: this.config.api.user.device,
+                username: this.config.api.user.name,
+                password: this.config.api.user.password,
+            },
+            log
         )
+
+        this.Poller = new VRC9xxAPIPoller(this.VaillantAPI, this.config.api.polling, log)
+        this.Poller.on(VAILLANT_POLLER_EVENTS.FACILITIES, this.facilitiesEvent.bind(this))
 
         // register lifecycle message
         this.api.on('didFinishLaunching', this.didFinishLaunching.bind(this))
@@ -44,11 +52,9 @@ class VaillantVRC9xxPlatform {
         this.Poller.start()
     }
 
-    authenticatedEvent(e) {
-        this.log('Authenticated: ', e.success)
-    }
+    facilitiesEvent(descriptor) {
+        const facility = buildFacilityDescriptor(descriptor, this.VaillantAPI)
 
-    facilitiesEvent(facility) {
         const name = facility.name
         const serial = facility.serialNumber
 

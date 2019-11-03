@@ -1,6 +1,6 @@
 {
     "name": "homebridge-vaillant-vrc9xx",
-    "version": "0.1.0",
+    "version": "0.3.0",
     "description": "Vaillant VRC9xx - Homebridge Platform Plugin ",
     "repository": {
         "url": "git+https://github.com/lmelon/homebridge-vaillant-vrc9xx.git",
@@ -22,8 +22,8 @@
         "axios": "^0.18.1",
         "axios-cookiejar-support": "^0.4.2",
         "esm": "^3.2.4",
-        "lodash": "^4.17.13",
-        "tough-cookie": "^3.0.0"
+        "lodash": "^4.17.15",
+        "tough-cookie": "^3.0.1"
     },
     "engines": {
         "homebridge": ">0.4.46",
