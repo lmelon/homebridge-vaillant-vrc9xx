@@ -19,14 +19,12 @@
     "author": "L. Mélon",
     "license": "MIT",
     "dependencies": {
-        "axios": "^0.18.1",
-        "axios-cookiejar-support": "^0.4.2",
         "esm": "^3.2.4",
         "fakegato-history": "^0.5.6",
         "homebridge-lib": "^4.4.7",
         "lodash": "^4.17.15",
         "moment": "^2.24.0",
-        "tough-cookie": "^3.0.1"
+        "node-fetch-cookies": "^1.2.3"
     },
     "engines": {
         "homebridge": ">0.4.46",

@@ -17,14 +17,9 @@ class VaillantAPIPoller extends EventEmitter {
         }
 
         this.log = log
-
         this.api = api
-
-        this.state = {}
-        this.observers = []
-        this.timers = {
-            facilities: undefined,
-        }
+        this.facilities = {}
+        this.timer = null
     }
 
     // ---------- public api
@@ -35,32 +30,35 @@ class VaillantAPIPoller extends EventEmitter {
 
     stop() {
         this.log('Stopping poller ...')
-        for (const [key, timer] of Object.entries(this.timers)) {
-            if (timer) {
-                clearTimeout(timer)
-                this.timers[key] = null
-            }
+        if (this.timer) {
+            clearTimeout(this.timer)
         }
+
+        this.facilities.forEach(facility => {
+            clearTimeout(facility.timer)
+        })
     }
 
     subscribe(serial, path, callback) {
-        let facility = this.state[serial].current
-        let value = _.at(facility, path)[0]
+        const facility = this.facilities[serial]
+        const state = facility.state
+
+        let value = _.at(state, path)[0]
 
         let descriptor = {
             serial,
             path,
             callback,
             value,
-            id: this.observers.length,
+            id: facility.observers.length,
         }
+
+        facility.observers.push(descriptor)
 
         // force an update with the current value for new subscriber
         setTimeout(() => {
             callback({ current: value, previous: undefined })
         })
-
-        return this.observers.push(descriptor)
     }
 
     // ----------- private api
@@ -70,72 +68,92 @@ class VaillantAPIPoller extends EventEmitter {
             var facilities = await this.api.getFacilities()
 
             // download details of each discovered facilities
-            facilities.forEach(facility => {
-                this.createOrUpdateFacility(facility)
-            })
+            for (const facility of facilities) {
+                this.initFacilityState(facility)
+            }
         } catch (e) {
             this.log('Failed to get facilities list ... will retry in 30 seconds')
 
             // failed -- retry in 30 seconds
-            this.timers.facilities = setTimeout(this.getAllFacilities.bind(this), 30 * 1000)
+            this.timer = setTimeout(this.getAllFacilities.bind(this), 30 * 1000)
         }
     }
 
-    async createOrUpdateFacility(facility) {
+    async initFacilityState(facility) {
         const serial = facility.serialNumber
 
-        this.state[serial] = { facility }
+        if (!this.facilities[serial]) {
+            this.facilities[serial] = {
+                description: facility,
+                status: {
+                    initialized: false,
+                    refresh: null,
+                    stale: true,
+                },
+                state: null,
+                timer: null,
+                observers: [],
+            }
 
-        // trigger a state refresh
-        if (!this.timers[serial]) {
-            await this.getFacilityState(serial)
+            this.refreshFacilityState(serial)
         }
-
-        // notify about the new facility
-        this.emit(VAILLANT_POLLER_EVENTS.FACILITIES, this.state[serial])
     }
 
-    async getFacilityState(serial) {
-        const name = this.state[serial].facility.name
+    async refreshFacilityState(serial) {
+        const facility = this.facilities[serial]
+        const name = facility.description.name
 
         try {
-            this.state[serial].current = await this.api.getFullState(serial)
-            this.state[serial].refresh = new Date().getTime()
+            facility.state = await this.api.getFullState(serial)
+            facility.status.refresh = new Date().getTime()
+            facility.status.stale = false
 
+            if (!facility.status.initialized) {
+                // notify about the new facility
+                this.emit(VAILLANT_POLLER_EVENTS.FACILITIES, facility)
+                facility.status.initialized = true
+            }
+
+            // notify observers
+            this.notifyAll(serial)
             this.log(`Facility ${name} -- ${serial} refreshed`)
+        } catch (e) {
+            if (e.status === 409) {
+                facility.status.stale = true
+            }
+
+            this.log(`Error while refreshing facility ${name} -- ${serial}`)
         } finally {
-            // compute if data is stalled
-            const now = new Date().getTime()
-            const hkRefresh = this.state[serial].refresh
-            const vr900Refresh = this.state[serial].current.meta.timestamp
-            this.state[serial].current.meta.old = now - hkRefresh > 60 * 1000 * 3 || now - vr900Refresh > 60 * 1000 * 5
+            if (facility.status.initialized) {
+                const now = new Date().getTime()
+                facility.state.meta.gateway = facility.state.meta.gateway || facility.status.stale
+                facility.state.meta.cloud = now - facility.status.refresh > 2 * 60 * 1000
+            }
 
             // notify observers
             this.notifyAll(serial)
 
             // program next run
-            this.timers[serial] = setTimeout(() => {
-                try {
-                    this.getFacilityState(serial)
-                } catch (e) {
-                    this.log(`Error while refreshing facility ${name} -- ${serial}`)
-                    this.log(e)
-                    this.log(JSON.stringify(e))
-                }
+            facility.timer = setTimeout(() => {
+                this.refreshFacilityState(serial)
             }, this.polling * 1000)
         }
     }
 
     notifyAll(serial) {
-        this.observers.forEach(descriptor => {
-            if (descriptor && descriptor.serial === serial) {
-                let facility = this.state[serial].current
-                let newValue = _.at(facility, descriptor.path)[0]
+        const facility = this.facilities[serial]
+        const state = facility.state
+        const observers = facility.observers
 
+        observers.forEach(descriptor => {
+            try {
+                let newValue = _.at(state, descriptor.path)[0]
                 if (newValue !== descriptor.value) {
                     descriptor.callback({ current: newValue, previous: descriptor.value })
                     descriptor.value = newValue
                 }
+            } catch (e) {
+                // do nothing
             }
         })
     }

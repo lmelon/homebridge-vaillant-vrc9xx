@@ -2,7 +2,7 @@ import _ from 'lodash'
 import { API_COMMANDS } from './VaillantAPICommands.mjs'
 import { HTTPClient } from './HttpClient.mjs'
 
-const BASE_URL = 'https://smart.vaillant.com/mobile/api/v4/'
+const BASE_URL = 'https://smart.vaillant.com/mobile/api/v4'
 
 class VRC9xxAPI {
     constructor(data, log) {
@@ -34,31 +34,13 @@ class VRC9xxAPI {
     }
 
     handleError(e, command) {
-        if (e.response) {
-            if (e.response.status === 401) {
+        switch (e.status) {
+            case 401:
                 this.state.authenticated = false
-            }
-
-            this.log({
-                status: e.response.status,
-                statusText: e.response.statusText,
-                headers: e.response.headers,
-                //data: JSON.stringify(resp.data, null, '  '),
-            })
         }
 
+        this.log(`${e.status} - ${e.statusText} - ${e.body}`)
         throw e
-    }
-
-    handleResponse(resp) {
-        this.log({
-            status: resp.status,
-            statusText: resp.statusText,
-            //headers: resp.headers,
-            //data: JSON.stringify(resp.data, null, '  '),
-        })
-
-        return resp.data
     }
 
     async logIn(force = false) {
@@ -142,28 +124,18 @@ class VRC9xxAPI {
         })
 
         // look for stale data
-        var pending = false
-        var recent = 0
-        var now = new Date().getTime() - 60000 * new Date().getTimezoneOffset()
-
+        var gateway = false
         metas.forEach(meta => {
             if (meta.resourceState) {
                 meta.resourceState.forEach(item => {
                     if (item.state !== 'SYNCED') {
-                        pending = true
+                        gateway = true
                     }
-
-                    var time = item.timestamp
-                    if (time.toString().length < 13) {
-                        time *= 1000
-                    }
-
-                    recent = Math.max(recent, time)
                 })
             }
         })
 
-        info.meta = { pending, timestamp: recent, age: now - recent, old: now - recent > 10 }
+        info.meta = { gateway }
 
         return info
     }

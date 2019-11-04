@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-export function buildFacilityDescriptor(vr9xxState, api) {
+export function buildFacilityDescriptor(facility, api) {
     function buildSensorsDescriptor(serial, info) {
         let sensors = []
 
@@ -157,20 +157,20 @@ export function buildFacilityDescriptor(vr9xxState, api) {
     function buildSwitchesDescriptor(serial, info) {
         let switches = []
 
-        const name = info.facility.name
+        const name = info.description.name
         const pendingSwitch = {
             type: 'SWITCH',
-            name: 'Pending - ' + name,
+            name: 'Gateway Synced - ' + name,
             serial,
-            path: `meta.pending`,
+            path: `meta.gateway`,
         }
         switches.push(pendingSwitch)
 
         const staleSwitch = {
             type: 'SWITCH',
-            name: 'Stale - ' + name,
+            name: 'Cloud Connected - ' + name,
             serial,
-            path: `meta.old`,
+            path: `meta.cloud`,
         }
 
         switches.push(staleSwitch)
@@ -178,15 +178,15 @@ export function buildFacilityDescriptor(vr9xxState, api) {
         return switches
     }
 
-    const serial = vr9xxState.facility.serialNumber
+    const serial = facility.description.serialNumber
 
     let hkDescriptor = {
-        ...vr9xxState.facility,
-        gateway: vr9xxState.current.gateway.gatewayType,
-        sensors: buildSensorsDescriptor(serial, vr9xxState.current),
-        regulators: buildRegulatorDescriptor(serial, vr9xxState.current, api),
-        dhw_regulators: buildDHWRegulatorDescriptor(serial, vr9xxState.current, api),
-        switches: buildSwitchesDescriptor(serial, vr9xxState),
+        ...facility.description,
+        gateway: facility.state.gateway.gatewayType,
+        sensors: buildSensorsDescriptor(serial, facility.state),
+        regulators: buildRegulatorDescriptor(serial, facility.state, api),
+        dhw_regulators: buildDHWRegulatorDescriptor(serial, facility.state, api),
+        switches: buildSwitchesDescriptor(serial, facility),
     }
 
     return hkDescriptor

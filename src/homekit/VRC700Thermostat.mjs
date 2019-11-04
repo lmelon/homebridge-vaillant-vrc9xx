@@ -85,7 +85,7 @@ class VRC700Accessory {
         this.serial = config.serial
 
         this._services = undefined
-        this.log = log
+        this.log = (...args) => log(this.name, '>', ...args)
     }
 
     getServices() {
@@ -173,7 +173,7 @@ class VRC700TemperatureSensor extends VRC700Accessory {
         this.name = desc.name
         this.displayName = desc.name
 
-        this.currentTemperature = 2
+        this.currentTemperature = undefined
         this.serial = desc.id
 
         this.platform = platform
@@ -190,8 +190,24 @@ class VRC700TemperatureSensor extends VRC700Accessory {
         this.log('Updating Current Temperature from/to :', this.currentTemperature, value.current)
         this.currentTemperature = value.current
 
+        this.addHistoricalEntry()
+    }
+
+    addHistoricalEntry() {
+        /*
+            We want an entry at least every 5 min. So schedule a timer to log 1 data point every 10 mins (if no new data comes in).
+            If new data is received, cancel the existing timer and schedule a new one (in 10 mins from now).
+        */
+
+        if (this.historyTimer) {
+            clearTimeout(this.historyTimer)
+            this.historyTimer = null
+        }
+
         const entry = { time: moment().unix(), temp: this.currentTemperature }
         this.loggingService.addEntry(entry)
+
+        this.historyTimer = setTimeout(this.addHistoricalEntry.bind(this), 5 * 60 * 1000)
     }
 
     createAccessoryService() {
@@ -202,6 +218,8 @@ class VRC700TemperatureSensor extends VRC700Accessory {
             .on('get', this.getCurrentTemperature.bind(this))
 
         const config = {
+            disableTimer: true,
+            disableRepeatLastData: true,
             storage: 'fs',
             path: this.platform.api.user.storagePath() + '/accessories',
             filename: 'history_' + this.serial + '.json',

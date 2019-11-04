@@ -1,47 +1,52 @@
-import axios from 'axios'
-import cookieJarSupport from 'axios-cookiejar-support'
-import tough from 'tough-cookie'
+import { fetch, CookieJar } from 'node-fetch-cookies'
 
-const axiosClient = cookieJarSupport(axios)
+const NB_RETRY = 3
 
 export class HTTPClient {
     constructor(baseURL, log) {
-        this.cookieJar = new tough.CookieJar()
+        this.cookieJar = new CookieJar('rw')
         this.baseURL = baseURL
         this.log = log
     }
 
     buildQuery(command) {
         return {
-            url: command.url,
-            method: command.method,
-            jar: this.cookieJar,
-            withCredentials: true,
-            type: 'json',
-            baseURL: this.baseURL,
-            data: command.data || null,
+            url: this.baseURL + command.url,
+            options: {
+                method: command.method,
+                body: JSON.stringify(command.data) || null,
+                headers: { 'Content-Type': 'application/json' },
+            },
         }
     }
 
-    handleResponse(response, resolve, reject) {
-        switch (response.status) {
-            case 200:
-                resolve(response)
-                return true
-            case 401:
-                reject(response)
-                return true
-            case 429:
-                this.log(`  --> ${response.status} -- ${response.statusText}`)
-                return false
-            default:
-                this.log(`  --> ${response.status} -- ${response.statusText}`)
-                if (response.data) {
-                    this.log(`  --> ${JSON.stringify(response.data)}`)
-                }
+    async fetch(query) {
+        try {
+            const response = await fetch(this.cookieJar, query.url, query.options)
+            const body = await json(response)
+            const status = response.status
+            const statusText = response.statusText
 
-                reject(response)
-                return false
+            switch (status) {
+                case 200:
+                    return { error: false, status, statusText, body, response }
+                case 401:
+                    return { error: true, status, statusText, body: JSON.stringify(body), response, retry: false }
+                case 404:
+                    return { error: true, status, statusText, body: response.url, response, retry: false }
+                case 409:
+                    return { error: true, status, statusText, body: JSON.stringify(body), response, retry: false }
+                default:
+                    return { error: true, status, statusText, body: JSON.stringify(body), response, retry: true }
+            }
+        } catch (e) {
+            return {
+                error: true,
+                status: e.errno,
+                body: e.message,
+                response: e,
+                retry: true,
+            }
         }
     }
 
@@ -51,33 +56,25 @@ export class HTTPClient {
             this.log(`[${command.description}]`)
         }
 
-        return new Promise(async (resolve, reject) => {
-            let retry = 0
-            while (true) {
-                try {
-                    const response = await axiosClient(query)
-                    if (this.handleResponse(response, resolve, reject)) {
-                        return
-                    }
-                } catch (e) {
-                    if (e.response) {
-                        if (this.handleResponse(e.response, resolve, reject)) {
-                            return
-                        }
-                    } else {
-                        this.log(`  --> ${e.errno} -- ${e.syscall}`)
-                    }
+        let retry = 0
+        while (retry++ < NB_RETRY) {
+            const value = await this.fetch(query)
 
-                    if (retry > 2) {
-                        return reject(e)
-                    }
-                }
+            // not an error -> done
+            if (!value.error) return value.body
 
-                retry++
-                await delay(retry * 2)
-                this.log(`  > retry #${retry}`)
-            }
-        })
+            // error and no retry -> done
+            if (!value.retry) throw value
+
+            // else wait and retry
+            this.log(value)
+            this.log(`  > ${value.status} - ${value.statusText} - ${value.body}`)
+
+            await delay(retry * 2)
+            this.log(`  > retry #${retry}`)
+        }
+
+        throw buildError('TOO_MANY_RETRY', 'Too many retry')
     }
 }
 
@@ -87,4 +84,24 @@ async function delay(seconds) {
             resolve()
         }, seconds * 1000)
     )
+}
+
+async function json(response) {
+    var json = {}
+    try {
+        json = await response.json()
+    } catch (e) {}
+
+    return json
+}
+
+function buildError(code, message) {
+    return {
+        error: true,
+        status: code,
+        statusText: message,
+        body: '',
+        response: undefined,
+        retry: false,
+    }
 }
