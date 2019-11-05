@@ -15,11 +15,11 @@ The first point is definitelly fixed by this plugin as homebridge will poll vail
 
 The second point is not fully adressed for now. I plan to build in a retry mechanism that would ensure your command eventually get executed even hours later.
 
-Beside these point, integration with homekit bring additional benefit like richer automation (based on your location for example).
+Beside these points, integration with homekit bring additional benefits like richer automation (based on your location for example).
 
 You could for example adapt the temperature along the day (a bit cooler during the period of the day you move a lot, a bit hotter when you are sitting in your coach watching TV).
 
-I also plan to integrate predefined schedule that you could activate automatically when you are away for the week-end.
+I might eventually integrate predefined schedules that you could activate automatically (when you are away for the week-end for example).
 
 ## Status
 
