@@ -1,6 +1,6 @@
 # homebridge-vaillant-vrc9xx
 
-A plugin for [homebridge](https://github.com/nfarina/homebridge), which allows to control Vaillant heater equipped with the VRC900 or VRC920 internal module.
+A plugin for [homebridge](https://github.com/nfarina/homebridge), which allows to control Vaillant heater equipped with the VRC900 or VRC920 internet module.
 
 It is a partial replacement for the multiMatic app available for iOS and Android.
 
