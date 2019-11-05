@@ -137,22 +137,21 @@ class VRC700Switch extends VRC700Accessory {
         super(config, desc, platform, log)
 
         this.name = desc.name
-        this.currentValue = false
+        this.currentValue = Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
 
         platform.registerObserver(desc.serial, desc.path, this.updateCurrentValue.bind(this))
     }
 
     getCurrentValue(callback) {
-        return callback(
-            null,
-            this.currentValue
-                ? Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
-                : Characteristic.ContactSensorState.CONTACT_DETECTED
-        )
+        return callback(null, this.currentValue)
     }
 
     updateCurrentValue(value) {
         this.currentValue = value.current
+            ? Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
+            : Characteristic.ContactSensorState.CONTACT_DETECTED
+
+        this.accessoryService.getCharacteristic(Characteristic.ContactSensorState).updateValue(this.currentValue)
     }
 
     createAccessoryService() {
@@ -161,6 +160,8 @@ class VRC700Switch extends VRC700Accessory {
             .setCharacteristic(Characteristic.Name, this.name)
             .getCharacteristic(Characteristic.ContactSensorState)
             .on('get', this.getCurrentValue.bind(this))
+
+        this.accessoryService = service
 
         return service
     }
@@ -190,6 +191,8 @@ class VRC700TemperatureSensor extends VRC700Accessory {
         this.log('Updating Current Temperature from/to :', this.currentTemperature, value.current)
         this.currentTemperature = value.current
 
+        this.accessoryService.getCharacteristic(Characteristic.CurrentTemperature).updateValue(this.currentTemperature)
+
         this.addHistoricalEntry()
     }
 
@@ -216,6 +219,8 @@ class VRC700TemperatureSensor extends VRC700Accessory {
             .setCharacteristic(Characteristic.Name, this.name)
             .getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getCurrentTemperature.bind(this))
+
+        this.accessoryService = service
 
         const config = {
             disableTimer: true,
