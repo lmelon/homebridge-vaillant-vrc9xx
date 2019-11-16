@@ -1,5 +1,6 @@
 'use strict'
 
+import util from 'util'
 import packageFile from '../../package.json'
 const VERSION = packageFile.version
 const PLUGIN_NAME = packageFile.name
@@ -43,54 +44,115 @@ class VaillantVRC9xxPlatform {
 
         this.Poller = new VRC9xxAPIPoller(this.VaillantAPI, this.config.api.polling, log)
         this.Poller.on(VAILLANT_POLLER_EVENTS.FACILITIES, this.facilitiesEvent.bind(this))
+        this.Poller.on(VAILLANT_POLLER_EVENTS.FACILITIES_DONE, this.facilitiesDone.bind(this))
+
+        defineCustomCharateristics(api.hap.Characteristic)
 
         // register lifecycle message
         this.api.on('didFinishLaunching', this.didFinishLaunching.bind(this))
     }
 
     async didFinishLaunching() {
-        this.Poller.start()
+        this.log('Finished launching')
     }
 
     facilitiesEvent(descriptor) {
-        const facility = buildFacilityDescriptor(descriptor, this.VaillantAPI)
+        try {
+            const facility = buildFacilityDescriptor(descriptor, this.VaillantAPI)
 
-        const name = facility.name
-        const serial = facility.serialNumber
+            const name = facility.name
+            const serial = facility.serialNumber
 
-        if (this._accessories[serial]) {
-            // nothing to do, already known
-            return
+            if (this._accessories[serial]) {
+                // nothing to do, already known
+                return
+            }
+
+            var uuid = this.api.hap.uuid.generate(serial)
+            this.log(`New facility ${name} - ${serial} - ${uuid}`)
+
+            const config_data = {
+                name,
+                serial,
+                firmware: facility.firmwareVersion,
+                gateway: facility.gateway,
+                uuid,
+                sensors: facility.sensors,
+                regulators: facility.regulators,
+                dhw_regulators: facility.dhw_regulators,
+                switches: facility.switches,
+            }
+
+            this._accessories[serial] = config_data
+        } catch (error) {
+            this.log(error)
+            throw error
+        }
+    }
+
+    facilitiesDone() {
+        try {
+            let accessories = Object.entries(this._accessories)
+                .map(([serial, config]) => new VRC700Thermostat(this.api, this.log, config, this))
+                .map(thermostat => thermostat.getAccessories())
+                .reduce((prev, val) => {
+                    this.log(val)
+                    prev.push(...val)
+                    return prev
+                }, [])
+
+            this.registerAccessories(accessories)
+        } catch (error) {
+            this.log(error)
+            throw error
         }
 
-        this.log(`New facility ${name} - ${serial}`)
-        var uuid = this.api.hap.uuid.generate(serial)
-
-        const config_data = {
-            name,
-            serial,
-            firmware: facility.firmwareVersion,
-            gateway: facility.gateway,
-            uuid,
-            sensors: facility.sensors,
-            regulators: facility.regulators,
-            dhw_regulators: facility.dhw_regulators,
-            switches: facility.switches,
-        }
-
-        let thermostat = new VRC700Thermostat(this.api, this.log, config_data, this)
-        let accessories = thermostat.getAccessories()
-
-        this.registerAccessories(accessories)
-        this._accessories[serial] = thermostat
+        this.log(`End of initialization`)
     }
 
     registerObserver(serial, path, observer) {
         return this.Poller.subscribe(serial, path, observer)
     }
 
-    accessories(callback) {
+    async accessories(callback) {
         this.log('Received callback')
         this.registerAccessories = callback
+
+        this.log('Start polling for data')
+        await this.Poller.start()
     }
+}
+
+function defineCustomCharateristics(Characteristic) {
+    Characteristic.TargetNightTemperature = function() {
+        Characteristic.call(this, 'Target Night Temperature', '2DB4D12B-B2DD-42EA-A469-A23051F478D7')
+        this.setProps({
+            format: Characteristic.Formats.FLOAT,
+            unit: Characteristic.Units.CELSIUS,
+            maxValue: 30,
+            minValue: 5,
+            minStep: 0.5,
+            perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY],
+        })
+        this.value = this.getDefaultValue()
+    }
+
+    util.inherits(Characteristic.TargetNightTemperature, Characteristic)
+    Characteristic.TargetNightTemperature.UUID = '2DB4D12B-B2DD-42EA-A469-A23051F478D7'
+
+    Characteristic.TargetDayTemperature = function() {
+        Characteristic.call(this, 'Target Day Temperature', 'E0C2907C-0011-4392-87B7-10622C654D5C')
+        this.setProps({
+            format: Characteristic.Formats.FLOAT,
+            unit: Characteristic.Units.CELSIUS,
+            maxValue: 30,
+            minValue: 5,
+            minStep: 0.5,
+            perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY],
+        })
+        this.value = this.getDefaultValue()
+    }
+
+    util.inherits(Characteristic.TargetDayTemperature, Characteristic)
+    Characteristic.TargetDayTemperature.UUID = 'E0C2907C-0011-4392-87B7-10622C654D5C'
 }
