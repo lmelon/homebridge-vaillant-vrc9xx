@@ -105,11 +105,20 @@ class VRC9xxAPI {
         // build main object
         const info = _.zipObject(['system', 'measures', 'status', 'gateway'], bodies)
 
+        // filter inactive zone
+        info.system.zones = info.system.zones.filter(zone => zone.configuration.enabled)
+
         // index zones by id
-        info.system.zones = _.zipObject(info.system.zones.map(zone => zone._id), info.system.zones)
+        info.system.zones = _.zipObject(
+            info.system.zones.map(zone => zone._id),
+            info.system.zones
+        )
 
         // index dwh by id
-        info.system.dhw = _.zipObject(info.system.dhw.map(dhw => dhw._id), info.system.dhw)
+        info.system.dhw = _.zipObject(
+            info.system.dhw.map(dhw => dhw._id),
+            info.system.dhw
+        )
 
         // isolate temperature measures
         let devices = info.measures.devices
@@ -120,7 +129,10 @@ class VRC9xxAPI {
                 measures = reports.reports.filter(item => item.measurement_category === 'TEMPERATURE')
             }
 
-            info.system.dhw[key].configuration = _.zipObject(measures.map(item => item._id), measures)
+            info.system.dhw[key].configuration = _.zipObject(
+                measures.map(item => item._id),
+                measures
+            )
         })
 
         // look for stale data
