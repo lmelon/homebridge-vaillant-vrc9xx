@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 export function buildFacilityDescriptor(facility, api) {
-    function buildSensorsDescriptor(serial, info) {
+    function buildSensorsDescriptor(name, serial, info) {
         let sensors = []
 
         // inside temp
@@ -12,7 +12,7 @@ export function buildFacilityDescriptor(facility, api) {
 
             let sensor = {
                 type: 'SENSOR',
-                name: 'Inside - ' + zone.configuration.name,
+                name: `${name} - ${zone.configuration.name.trim()} - Inside`,
                 serial,
                 path: `system.zones.${key}.configuration.inside_temperature`,
                 id: `${serial}-${key}-inside_temperature`,
@@ -26,7 +26,7 @@ export function buildFacilityDescriptor(facility, api) {
         if (_.at(info, outside_temp_path).length > 0) {
             sensors.push({
                 type: 'SENSOR',
-                name: 'Outside Temperature',
+                name: `${name} - Outside`,
                 serial,
                 path: outside_temp_path,
                 id: `${serial}-outside_temperature`,
@@ -42,7 +42,7 @@ export function buildFacilityDescriptor(facility, api) {
             Object.keys(dhw_zone.configuration).forEach(conf => {
                 let sensor = {
                     type: 'SENSOR',
-                    name: dhw_zone.configuration[conf].name,
+                    name: `${name} - ${dhw_zone.configuration[conf].name.trim()}`,
                     serial,
                     path: `system.dhw.${key}.configuration.${conf}.value`,
                     id: `${serial}-${key}-dwh_temperature`,
@@ -56,14 +56,14 @@ export function buildFacilityDescriptor(facility, api) {
         return sensors
     }
 
-    function buildRegulatorDescriptor(serial, info, api) {
+    function buildRegulatorDescriptor(name, serial, info, api) {
         let regulators = []
 
         // iterate on heating zones
         const zones = Object.keys(info.system.zones)
         zones.forEach(key => {
             let zone = info.system.zones[key]
-            let regulator = { name: zone.configuration.name, serial }
+            let regulator = { name: `${name} - ${zone.configuration.name.trim()}`, serial }
 
             // current temp
             regulator.current_temp = {
@@ -110,13 +110,13 @@ export function buildFacilityDescriptor(facility, api) {
         return regulators
     }
 
-    function buildDHWRegulatorDescriptor(serial, info, api) {
+    function buildDHWRegulatorDescriptor(name, serial, info, api) {
         let regulators = []
 
         // iterate on dhw zones
         const dhw = Object.keys(info.system.dhw)
         dhw.forEach(key => {
-            let regulator = { name: key, serial }
+            let regulator = { name: `${name} - Hot Water - ${key.replace('_', ' ')}`, serial }
 
             // current temp
             regulator.current_temp = {
@@ -154,13 +154,12 @@ export function buildFacilityDescriptor(facility, api) {
         return regulators
     }
 
-    function buildSwitchesDescriptor(serial, info) {
+    function buildSwitchesDescriptor(name, serial, info) {
         let switches = []
 
-        const name = info.description.name
         const pendingSwitch = {
             type: 'SWITCH',
-            name: 'Gateway Synced - ' + name,
+            name: `${name} - Gateway Synced`,
             serial,
             path: `meta.gateway`,
         }
@@ -168,7 +167,7 @@ export function buildFacilityDescriptor(facility, api) {
 
         const staleSwitch = {
             type: 'SWITCH',
-            name: 'Cloud Connected - ' + name,
+            name: `${name} - Cloud Connected`,
             serial,
             path: `meta.cloud`,
         }
@@ -179,14 +178,15 @@ export function buildFacilityDescriptor(facility, api) {
     }
 
     const serial = facility.description.serialNumber
+    const name = facility.description.name.trim()
 
     let hkDescriptor = {
         ...facility.description,
         gateway: facility.state.gateway.gatewayType,
-        sensors: buildSensorsDescriptor(serial, facility.state),
-        regulators: buildRegulatorDescriptor(serial, facility.state, api),
-        dhw_regulators: buildDHWRegulatorDescriptor(serial, facility.state, api),
-        switches: buildSwitchesDescriptor(serial, facility),
+        sensors: buildSensorsDescriptor(name, serial, facility.state),
+        regulators: buildRegulatorDescriptor(name, serial, facility.state, api),
+        dhw_regulators: buildDHWRegulatorDescriptor(name, serial, facility.state, api),
+        switches: buildSwitchesDescriptor(name, serial, facility),
     }
 
     return hkDescriptor
