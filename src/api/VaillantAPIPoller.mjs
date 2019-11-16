@@ -4,6 +4,7 @@ import EventEmitter from 'events'
 export const VAILLANT_POLLER_EVENTS = {
     AUTHENTICATION: 'AUTHENTICATION',
     FACILITIES: 'FACILITIES',
+    FACILITIES_DONE: 'FACILITIES_DONE',
 }
 
 class VaillantAPIPoller extends EventEmitter {
@@ -25,7 +26,7 @@ class VaillantAPIPoller extends EventEmitter {
     // ---------- public api
     async start() {
         this.log('Starting poller ...')
-        this.getAllFacilities()
+        await this.getAllFacilities()
     }
 
     stop() {
@@ -69,8 +70,10 @@ class VaillantAPIPoller extends EventEmitter {
 
             // download details of each discovered facilities
             for (const facility of facilities) {
-                this.initFacilityState(facility)
+                await this.initFacilityState(facility)
             }
+
+            this.emit(VAILLANT_POLLER_EVENTS.FACILITIES_DONE)
         } catch (e) {
             this.log('Failed to get facilities list ... will retry in 30 seconds')
 
@@ -95,7 +98,7 @@ class VaillantAPIPoller extends EventEmitter {
                 observers: [],
             }
 
-            this.refreshFacilityState(serial)
+            await this.refreshFacilityState(serial)
         }
     }
 
