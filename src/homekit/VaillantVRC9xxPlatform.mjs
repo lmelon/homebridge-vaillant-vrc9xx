@@ -96,7 +96,6 @@ class VaillantVRC9xxPlatform {
                 .map(([serial, config]) => new VRC700Thermostat(this.api, this.log, config, this))
                 .map(thermostat => thermostat.getAccessories())
                 .reduce((prev, val) => {
-                    this.log(val)
                     prev.push(...val)
                     return prev
                 }, [])
