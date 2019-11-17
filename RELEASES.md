@@ -1,9 +1,38 @@
 # Release Notes
 
+## Version 0.4.0 - 2019/11/16
+
+> **Breaking Change**
+>
+> Due to the change in the name of some accessories, they will be detected as new by HomeKit. This will potentially break existing automation rules
+
+**List of changes**
+
+-   Filtering of inactive zones
+-   Fix an issue in accessories naming preventing multiple installations
+-   More consistent name of accessories:
+    -   They now always start by the {Name of the installation}
+    -   Followed by the name of the zone (if relevant)
+    -   Then their individual name
+-   More consistent logging message
+
+## Version 0.3.1 - 2019/11/5
+
+**List of changes**
+
+-   Erroneous homebridge version in engine dependencies
+
 ## Version 0.3.0 - 2019/11/5
 
 This is the first public release.
-See README.md for features list.
+See README.md for full features list.
+
+**List of changes**
+
+-   Switch from Axios to fetch api
+-   Contact sensors to monitor status of the connection
+-   History for temperature measurements
+-   Significant refactoring of the code
 
 ## Any version < 0.3.0
 
