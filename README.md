@@ -36,6 +36,13 @@ I might eventually integrate predefined schedules that you could activate automa
 
 In theory any Vaillant heater that can be controlled with the multiMatic app (iOS and Android) should work too.
 
+## Requirements
+
+-   Node version 12
+-   Homebridge 4.50
+
+This might be an issue to upgrade an existing installation of homebridge. So remember that you can deploy a second (or third, ...) instance of homebridge next to an existing one: just change the username and port number in the config file.
+
 ## Installation
 
 After [Homebridge](https://github.com/nfarina/homebridge) has been installed:
