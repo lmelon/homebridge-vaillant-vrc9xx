@@ -1,5 +1,12 @@
 # Release Notes
 
+## Version 0.4.1 - 2019/11/25
+
+**List of changes**
+
+-   Fixed an issue preventing commands to be executed (change in temp, ...)
+-   Fixed an issue where the plugin would report incorrect values to homekit after a failed update
+
 ## Version 0.4.0 - 2019/11/16
 
 > **Breaking Change**

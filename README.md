@@ -137,11 +137,11 @@ This is because Vaillant through an error when the installation is disconnected 
 
 It this situation occurs during startup of homebridge, the plugin will never finish its initial setup (until the connection can finally be established). That also mean the homebridge instance will not be available.
 
-## Know limitations
+## Known limitations
 
 -   Incorrect status for domestic hotwater. I have not been able to find a way to determine for sure if the boiler is actually currently heating the water tank. I might implement a heuristic based on the planning though (see roadmap)
 -   No support for Fan and Cooling
--   Not dynamic: if you add or remove an installation (a home) or configure new zones, you have to relaunch the plugin for them to appear in homekit
+-   Not dynamic: if you add or remove an installation (i.e. a home) or configure new zones, you have to relaunch the plugin for them to appear in homekit
 -   Essentially tested in my personnal configuration which is a VRC900 internet gateway, the VRC700 thermostat and the VC306 boiler and a water tank.
 -   ~~My installation has a single Home, a single "Zone", a single "Water Tank", no Fan, no Cooler. Although the code is written with the possibility of multiple of them (Home, Zone, ...), I cannot guarantee it will work. If you have multiple installation you MUST give them different names.~~ Thanks to a nice user of this pluggin who granted me access to his system, version 0.4.0 now support multiple zones and multiple installation. _Beware to give a different name to each installation._
 -   ~~Limited error handling. Although it has worked for me quite long periods, sometimes the polling is broken and a restart is required. It is a stupid authentication issue. Just haven't found the time to fix it for now.~~ Has been dramatically improved in my last refactoring.

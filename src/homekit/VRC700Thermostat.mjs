@@ -183,7 +183,6 @@ class VRC700TemperatureSensor extends VRC700Accessory {
     }
 
     getCurrentTemperature(callback) {
-        //this.log('Getting Current Temperature:', this.name);
         return callback(null, this.currentTemperature)
     }
 
@@ -347,12 +346,15 @@ class VRC700HeaterRegulator extends VRC700Accessory {
 
     setTargetHeatingCoolingState(value, callback) {
         let vrc700State = this.hkToVRC700TargetState(value)
-        this.log(`Setting Target State from ${this.TargetHeatingCoolingState} to ${vrc700State}`)
 
-        this.TargetHeatingCoolingState = vrc700State
-        this.setHeatingModeCallback(this.TargetHeatingCoolingState)
+        if (this.TargetHeatingCoolingState !== vrc700State) {
+            this.log(`Setting Target State from ${this.TargetHeatingCoolingState} to ${vrc700State}`)
 
-        this.updateTargetTemperature()
+            this.TargetHeatingCoolingState = vrc700State
+            this.setHeatingModeCallback(this.TargetHeatingCoolingState)
+
+            this.updateTargetTemperature()
+        }
 
         return callback(null)
     }
@@ -416,19 +418,24 @@ class VRC700HeaterRegulator extends VRC700Accessory {
 
     getTargetDayTemperature(callback) {
         this.log('Getting Target Day Temperature')
-        return callback(null, this.TargetDayTemperature)
+
+        let value = this.TargetDayTemperature
+        if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
+            value = cToF(value)
+        }
+
+        return callback(null, value)
     }
 
     setTargetDayTemperature(value, callback) {
-        if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
-            value = this.cToF(value)
+        this.log('Setting Target Day Temperature to: ', value)
+
+        if (this.TemperatureDisplayUnits === Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
+            value = fToC(value)
         }
 
         this.setTargetDayTemperatureCallback(value)
         this.TargetDayTemperature = value
-        this.log('Setting Target Day Temperature to: ', value)
-
-        this.updateTargetTemperature()
 
         return callback(null)
     }
@@ -447,19 +454,24 @@ class VRC700HeaterRegulator extends VRC700Accessory {
 
     getTargetNightTemperature(callback) {
         this.log('Getting Target Night Temperature')
-        return callback(null, this.TargetNightTemperature)
+
+        let value = this.TargetNightTemperature
+        if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
+            value = cToF(value)
+        }
+
+        return callback(null, value)
     }
 
     setTargetNightTemperature(value, callback) {
-        if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
-            value = this.cToF(value)
+        this.log('Setting Target Night Temperature to: ', value)
+
+        if (this.TemperatureDisplayUnits === Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
+            value = fToC(value)
         }
 
         this.setTargetNightTemperatureCallback(value)
         this.TargetNightTemperature = value
-        this.log('Setting Target Night Temperature to: ', value)
-
-        this.updateTargetTemperature()
 
         return callback(null)
     }
@@ -662,10 +674,13 @@ class VRC700HotWaterRegulator extends VRC700Accessory {
 
     setTargetHeatingCoolingState(value, callback) {
         let vrc700State = this.hkToVRC700TargetState(value)
-        this.log(`Setting Target State from ${this.TargetHeatingCoolingState} to ${vrc700State}`)
 
-        this.TargetHeatingCoolingState = vrc700State
-        this.setHeatingModeCallback(this.TargetHeatingCoolingState)
+        if (this.TargetHeatingCoolingState !== vrc700State) {
+            this.log(`Setting Target State from ${this.TargetHeatingCoolingState} to ${vrc700State}`)
+
+            this.TargetHeatingCoolingState = vrc700State
+            this.setHeatingModeCallback(this.TargetHeatingCoolingState)
+        }
 
         return callback(null)
     }
@@ -697,8 +712,8 @@ class VRC700HotWaterRegulator extends VRC700Accessory {
     }
 
     setTargetTemperature(value, callback) {
-        if (this.TemperatureDisplayUnits == Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
-            value = this.cToF(value)
+        if (this.TemperatureDisplayUnits === Characteristic.TemperatureDisplayUnits.FAHRENHEIT) {
+            value = cToF(value)
         }
 
         this.setTargetTemperatureCallback(value)
@@ -773,14 +788,14 @@ class VRC700HotWaterRegulator extends VRC700Accessory {
         })
 
         regulator.getCharacteristic(Characteristic.CurrentTemperature).setProps({
-            maxValue: 100,
-            minValue: 0,
+            maxValue: 75,
+            minValue: 5,
             minStep: 0.1,
         })
 
         regulator.getCharacteristic(Characteristic.TargetTemperature).setProps({
-            maxValue: 100,
-            minValue: 30,
+            maxValue: 70,
+            minValue: 35,
             minStep: 1,
         })
 

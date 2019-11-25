@@ -1,11 +1,21 @@
+import * as rxjs from 'rxjs'
+import * as operators from 'rxjs/operators'
+
 import _ from 'lodash'
+import EventEmitter from 'events'
+
 import { API_COMMANDS } from './VaillantAPICommands.mjs'
 import { HTTPClient } from './HttpClient.mjs'
 
+const { Subject, defer } = rxjs
+const { tap, groupBy, mergeMap, distinctUntilChanged, auditTime, concatMap, delay } = operators
+
 const BASE_URL = 'https://smart.vaillant.com/mobile/api/v4'
 
-class VRC9xxAPI {
+class VRC9xxAPI extends EventEmitter {
     constructor(data, log) {
+        super()
+
         this.log = log ? log : console.log
         this.httpClient = new HTTPClient(BASE_URL, this.log)
 
@@ -17,6 +27,33 @@ class VRC9xxAPI {
             authenticated: false,
             pendingCommands: [],
             timer: undefined,
+        }
+
+        this.commandQueue = new Subject()
+        this.enqueueCommand = this.debouncedCommandFactory(this.query.bind(this), this.doneUpdate.bind(this))
+    }
+
+    debouncedCommandFactory(query, done) {
+        this.commandQueue
+            .pipe(
+                groupBy(command => command.url),
+                mergeMap(group$ => {
+                    return group$.pipe(
+                        distinctUntilChanged(),
+                        auditTime(2000),
+                        concatMap(command => {
+                            return defer(() => query(command)).pipe(
+                                delay(1000),
+                                tap(resp => done())
+                            )
+                        })
+                    )
+                })
+            )
+            .subscribe()
+
+        return function enqueue(command) {
+            this.commandQueue.next(command)
         }
     }
 
@@ -31,6 +68,10 @@ class VRC9xxAPI {
         } catch (e) {
             return this.handleError(e, command)
         }
+    }
+
+    doneUpdate() {
+        this.emit('UPDATE_DONE', {})
     }
 
     handleError(e, command) {
@@ -152,34 +193,6 @@ class VRC9xxAPI {
         return info
     }
 
-    enqueueCommand(command) {
-        const index = _.findIndex(this.state.pendingCommands, item => {
-            return item.url === command.url
-        })
-        if (index >= 0) {
-            this.log('Similar command pending ... replacing')
-            this.state.pendingCommands[index] = command
-            return
-        }
-
-        this.state.pendingCommands.push(command)
-
-        if (!this.timer) {
-            this.timer = setTimeout(this.processQueue.bind(this), 500)
-        }
-    }
-
-    async processQueue() {
-        var command = this.state.pendingCommands.shift()
-        while (command) {
-            this.log('Processing command')
-            await this.query(command)
-            var command = this.state.pendingCommands.shift()
-        }
-
-        this.timer = null
-    }
-
     async setTargetTemperature(facilitySerial, zone, temperature) {
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/configuration/setpoint_temperature`
 
@@ -191,6 +204,7 @@ class VRC9xxAPI {
             url,
             data,
             method: 'put',
+            description: 'Set Target Day Temp',
         })
     }
 
@@ -205,6 +219,7 @@ class VRC9xxAPI {
             url,
             data,
             method: 'put',
+            description: 'Set Water Target Temp',
         })
     }
 
@@ -219,6 +234,7 @@ class VRC9xxAPI {
             url,
             data,
             method: 'put',
+            description: 'Set Target Night Temp',
         })
     }
 
@@ -233,6 +249,7 @@ class VRC9xxAPI {
             url,
             data,
             method: 'put',
+            description: 'Set Heating Mode',
         })
     }
 
@@ -247,6 +264,7 @@ class VRC9xxAPI {
             url,
             data,
             method: 'put',
+            description: 'Set Hot Water Mode',
         })
     }
 

@@ -27,6 +27,10 @@ class VaillantAPIPoller extends EventEmitter {
     async start() {
         this.log('Starting poller ...')
         await this.getAllFacilities()
+
+        this.api.on('UPDATE_DONE', () => {
+            this.refreshAllFacilities(10000)
+        })
     }
 
     stop() {
@@ -102,10 +106,33 @@ class VaillantAPIPoller extends EventEmitter {
         }
     }
 
-    async refreshFacilityState(serial) {
+    refreshAllFacilities(delay) {
+        Object.keys(this.facilities).forEach(serial => {
+            const facility = this.facilities[serial]
+
+            // clear timer if any
+            if (facility.timer) {
+                clearTimeout(facility.timer)
+            }
+
+            // program next run in 10s
+            facility.timer = setTimeout(() => {
+                this.refreshFacilityState(serial, true)
+            }, delay)
+        })
+    }
+
+    async refreshFacilityState(serial, force = false) {
         const facility = this.facilities[serial]
         const name = facility.description.name
 
+        // clear timer if any
+        if (facility.timer) {
+            clearTimeout(facility.timer)
+            facility.timer = null
+        }
+
+        // do the refresh
         try {
             facility.state = await this.api.getFullState(serial)
             facility.status.refresh = new Date().getTime()
@@ -118,7 +145,7 @@ class VaillantAPIPoller extends EventEmitter {
             }
 
             // notify observers
-            this.notifyAll(serial)
+            this.notifyAll(serial, force)
             this.log(`Facility ${name} -- ${serial} refreshed`)
         } catch (e) {
             if (e.status === 409) {
@@ -143,7 +170,7 @@ class VaillantAPIPoller extends EventEmitter {
         }
     }
 
-    notifyAll(serial) {
+    notifyAll(serial, force) {
         const facility = this.facilities[serial]
         const state = facility.state
         const observers = facility.observers
@@ -151,7 +178,7 @@ class VaillantAPIPoller extends EventEmitter {
         observers.forEach(descriptor => {
             try {
                 let newValue = _.at(state, descriptor.path)[0]
-                if (newValue !== descriptor.value) {
+                if (force || newValue !== descriptor.value) {
                     descriptor.callback({ current: newValue, previous: descriptor.value })
                     descriptor.value = newValue
                 }
