@@ -1,5 +1,11 @@
 # Release Notes
 
+## Version 0.4.2 - 2019/11/25
+
+**List of changes**
+
+-   Deactivation of ESM (one of the library used in the plugin) caching mechanism as it is causing update issue
+
 ## Version 0.4.1 - 2019/11/25
 
 **List of changes**
