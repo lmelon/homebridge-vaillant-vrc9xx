@@ -50,4 +50,11 @@ export const API_COMMANDS = {
             method: 'get',
         }
     },
+    GET_RBR_FOR_FACILITY: serial => {
+        return {
+            description: 'Get facility room-by-room information',
+            url: `/facilities/${serial}/rbr/v1/rooms`,
+            method: 'get',
+        }
+    },
 }

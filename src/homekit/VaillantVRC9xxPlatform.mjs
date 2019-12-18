@@ -80,6 +80,7 @@ class VaillantVRC9xxPlatform {
                 sensors: facility.sensors,
                 regulators: facility.regulators,
                 dhw_regulators: facility.dhw_regulators,
+                rbr_regulators: facility.rbr_regulators,
                 switches: facility.switches,
             }
 

@@ -89,6 +89,9 @@ class VaillantAPIPoller extends EventEmitter {
     async initFacilityState(facility) {
         const serial = facility.serialNumber
 
+        // check if room-by-room is available
+        facility.rbr = facility.capabilities.filter(it => it === 'ROOM_BY_ROOM').length === 1
+
         if (!this.facilities[serial]) {
             this.facilities[serial] = {
                 description: facility,
@@ -125,6 +128,7 @@ class VaillantAPIPoller extends EventEmitter {
     async refreshFacilityState(serial, force = false) {
         const facility = this.facilities[serial]
         const name = facility.description.name
+        const rbr = facility.description.rbr
 
         // clear timer if any
         if (facility.timer) {
@@ -134,7 +138,7 @@ class VaillantAPIPoller extends EventEmitter {
 
         // do the refresh
         try {
-            facility.state = await this.api.getFullState(serial)
+            facility.state = await this.api.getFullState(serial, rbr)
             facility.status.refresh = new Date().getTime()
             facility.status.stale = false
 

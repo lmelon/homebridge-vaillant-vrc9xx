@@ -31,8 +31,10 @@ I might eventually integrate predefined schedules that you could activate automa
 
 ## Supported Vaillant devices
 
--   VRC900 (tested in combination with VRC700 thermostat)
--   VRC920 (not tested but seems to be API compatible with VRC900)
+-   VR900 (tested in combination with VRC700 thermostat)
+-   VR920 (tested in combination with VR50)
+-   VRC700
+-   VR50
 
 In theory any Vaillant heater that can be controlled with the multiMatic app (iOS and Android) should work too.
 
@@ -90,6 +92,12 @@ This configuration will connect to Vaillant API servers and get the full state o
 
 > **Remark**
 > As-of release 0.4.0, inactive zones are ignored and will not show up in homekit
+> Zones for which individual rooms have been defined will not show up in homekit
+
+-   Per _active_ "Room" (require ambiSENSE system with VR50 controlled valves):
+
+    -   One _thermostat_
+    -   One _temperature sensor_
 
 -   Per "Hot Water Tank":
 
@@ -104,6 +112,8 @@ This configuration will connect to Vaillant API servers and get the full state o
 
 ### Heating zone
 
+#### For Zones
+
 The heating thermostat is fully functional. It will shows the current temperature in the room the thermostat is located as well as the target temperature.
 
 The target shown depends on the heating state. The heater can be in 4 states: OFF (completelly stopped), Reduced (Night mode), Day, Auto (alternate between night and day according to the schedule).
@@ -113,6 +123,13 @@ Two temperatures can be programmed one for the day and one for the night.
 In "OFF", "Day" or "Auto" mode, the target shown is the day temperature. This is the one you can control via the Apple Home app. In "Reduced" (Night) mode, the target temperature shown/controlled is the night temperature.
 
 This is quite logical as you usually want to control the target temperation that is active now. If you want to control these two temperature individually, try the EVE app. It exposes two individual settings.
+
+#### For Rooms
+
+The heating thermostat is fully functional. It will shows the current temperature in the room the thermostat is located as well as the target temperature.
+
+A single target temperature is available at any given time.
+If the room contains a (battery powered) device with low battery, the thermostat will report low battery for the room.
 
 ### Domestic Hot Water
 

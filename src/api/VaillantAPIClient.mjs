@@ -127,13 +127,24 @@ class VRC9xxAPI extends EventEmitter {
         return await this.query(API_COMMANDS.GET_GATEWAY_FOR_FACILITY(facilitySerial), null)
     }
 
-    async getFullState(facilitySerial) {
-        const response = await Promise.all([
+    async getRbrInfos(facilitySerial) {
+        return await this.query(API_COMMANDS.GET_RBR_FOR_FACILITY(facilitySerial), null)
+    }
+
+    async getFullState(facilitySerial, includeRbr = false) {
+        const requests = [
             this.getFullSystem(facilitySerial),
             this.getEmfLiveReport(facilitySerial),
             this.getStatus(facilitySerial),
             this.getGateway(facilitySerial),
-        ])
+        ]
+
+        if (includeRbr) {
+            requests.push(this.getRbrInfos(facilitySerial))
+        }
+
+        // wait for all requests to complete
+        const response = await Promise.all(requests)
 
         const bodies = response.map(it => {
             return it.body
@@ -144,7 +155,7 @@ class VRC9xxAPI extends EventEmitter {
         })
 
         // build main object
-        const info = _.zipObject(['system', 'measures', 'status', 'gateway'], bodies)
+        const info = _.zipObject(['system', 'measures', 'status', 'gateway', 'rbr'], bodies)
 
         // filter inactive zone
         info.system.zones = info.system.zones.filter(zone => zone.configuration.enabled)
@@ -160,6 +171,25 @@ class VRC9xxAPI extends EventEmitter {
             info.system.dhw.map(dhw => dhw._id),
             info.system.dhw
         )
+
+        // if r-b-r
+        if (includeRbr) {
+            // compute battery_low
+            info.rbr.rooms.forEach(room => {
+                room.isBatteryLow = false
+                room.configuration.devices.forEach(device => {
+                    if (device.isBatteryLow) {
+                        room.isBatteryLow = true
+                    }
+                })
+            })
+
+            // index dwh by roomIndex
+            info.rbr.rooms = _.zipObject(
+                info.rbr.rooms.map(room => room.roomIndex),
+                info.rbr.rooms
+            )
+        }
 
         // isolate temperature measures
         let devices = info.measures.devices
@@ -238,6 +268,37 @@ class VRC9xxAPI extends EventEmitter {
         })
     }
 
+    async setTargetRoomTemperature(facilitySerial, roomIndex, temperature) {
+        const url = `/facilities/${facilitySerial}/rbr/v1/rooms/${roomIndex}/configuration/temperatureSetpoint`
+
+        const data = {
+            temperatureSetpoint: temperature,
+        }
+
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put',
+            description: 'Set Room Target Temp',
+        })
+    }
+
+    async setRoomQuickVeto(facilitySerial, roomIndex, temperature, duration) {
+        const url = `/facilities/${facilitySerial}/rbr/v1/rooms/${roomIndex}/configuration/quickVeto`
+
+        const data = {
+            temperatureSetpoint: temperature,
+            duration: duration,
+        }
+
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put',
+            description: 'Set Room Quick Veto',
+        })
+    }
+
     async setHeatingMode(facilitySerial, zone, mode) {
         const url = `/facilities/${facilitySerial}/systemcontrol/v1/zones/${zone}/heating/configuration/mode`
 
@@ -265,6 +326,21 @@ class VRC9xxAPI extends EventEmitter {
             data,
             method: 'put',
             description: 'Set Hot Water Mode',
+        })
+    }
+
+    async setRoomOperationMode(facilitySerial, roomIndex, mode) {
+        const url = `/facilities/${facilitySerial}/rbr/v1/rooms/${roomIndex}/configuration/operationMode`
+
+        const data = {
+            operationMode: mode,
+        }
+
+        this.enqueueCommand({
+            url,
+            data,
+            method: 'put',
+            description: 'Set Room Operation Mode',
         })
     }
 

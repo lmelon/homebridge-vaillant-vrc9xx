@@ -1,5 +1,12 @@
 # Release Notes
 
+## Version 0.5.0 - 2019/12/25
+
+**List of changes**
+
+-   Add support for VR-50 (ambiSENSE / Room-by-room) regulation system (in combination with VR920)
+    -   Each Room (as defined in the MultiMatic application) will be shown as an independant regulator
+
 ## Version 0.4.2 - 2019/11/25
 
 **List of changes**
