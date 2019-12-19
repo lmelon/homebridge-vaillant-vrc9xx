@@ -213,6 +213,9 @@ export function buildFacilityDescriptor(facility, api) {
                 update_callback: value => {
                     api.setTargetRoomTemperature(serial, roomIndex, value)
                 },
+                veto_callback: (value, duration) => {
+                    api.setRoomQuickVeto(serial, roomIndex, value, duration)
+                },
             }
 
             // target status
