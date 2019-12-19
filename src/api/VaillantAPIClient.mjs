@@ -25,8 +25,6 @@ class VRC9xxAPI extends EventEmitter {
 
         this.state = {
             authenticated: false,
-            pendingCommands: [],
-            timer: undefined,
         }
 
         this.commandQueue = new Subject()
