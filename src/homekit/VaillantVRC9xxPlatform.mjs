@@ -1,18 +1,31 @@
 'use strict'
 
+import _ from 'lodash'
 import util from 'util'
 import packageFile from '../../package.json'
-const VERSION = packageFile.version
-const PLUGIN_NAME = packageFile.name
-const FRIENDLY_NAME = 'VaillantVRC9xx'
 
 import VRC700Thermostat from './VRC700Thermostat.mjs'
 import VRC9xxAPI from '../api/VaillantAPIClient.mjs'
 import VRC9xxAPIPoller, { VAILLANT_POLLER_EVENTS } from '../api/VaillantAPIPoller.mjs'
 import { buildFacilityDescriptor } from './HomeKitDescriptor.mjs'
 
+const VERSION = packageFile.version
+const PLUGIN_NAME = packageFile.name
+const FRIENDLY_NAME = 'VaillantVRC9xx'
+
 export default homebridge => {
     homebridge.registerPlatform(PLUGIN_NAME, FRIENDLY_NAME, VaillantVRC9xxPlatform, true)
+}
+
+const DEFAULT_CONFIG = {
+    platform: 'VaillantVRC9xx',
+    api: {
+        polling: 60,
+        user: {},
+        rooms: {
+            veto_duration: 180,
+        },
+    },
 }
 
 class VaillantVRC9xxPlatform {
@@ -25,7 +38,7 @@ class VaillantVRC9xxPlatform {
             return
         }
 
-        this.config = config
+        this.config = this.mergeDefault(config)
         this.api = api
         this.log = log
 
@@ -50,6 +63,15 @@ class VaillantVRC9xxPlatform {
 
         // register lifecycle message
         this.api.on('didFinishLaunching', this.didFinishLaunching.bind(this))
+    }
+
+    mergeDefault(config) {
+        let newConfig = _.merge(DEFAULT_CONFIG, config)
+
+        // check some default rules
+        if (newConfig.api.polling < 30) newConfig.api.polling = 30
+
+        return newConfig
     }
 
     async didFinishLaunching() {

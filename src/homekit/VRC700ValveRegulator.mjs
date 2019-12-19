@@ -13,6 +13,7 @@ class VRC700ValveRegulator extends VRC700Accessory {
         Service = api.hap.Service
 
         this.name = desc.name
+        this.veto_duration = platform.config.api.rooms.veto_duration
 
         //State
         this.CurrentHeatingCoolingState = undefined
@@ -21,6 +22,7 @@ class VRC700ValveRegulator extends VRC700Accessory {
         this.StatusLowBattery = undefined
 
         this.setTargetTemperatureCallback = desc.target_temp.update_callback
+        this.setRoomQuickVeto = desc.target_temp.veto_callback
         this.setHeatingModeCallback = desc.target_status.update_callback
 
         platform.registerObserver(desc.serial, desc.current_temp.path, this.updateCurrentTemperature.bind(this))
@@ -154,8 +156,17 @@ class VRC700ValveRegulator extends VRC700Accessory {
             value = cToF(value)
         }
 
-        this.setTargetTemperatureCallback(value)
-        this.TargetTemperature = value
+        /*
+         *  if mode == AUTO -> use a Quick Veto
+         *  else (OFF or MANUAL) -> set target temperature
+         */
+        if (this.TargetHeatingCoolingState === 'AUTO') {
+            this.setRoomQuickVeto(value, this.veto_duration)
+        } else {
+            this.setTargetTemperatureCallback(value)
+            this.TargetTemperature = value
+        }
+
         this.log('Setting Target Room Temperature to: ', value)
 
         return callback(null)
