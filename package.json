@@ -6,6 +6,9 @@
         "url": "git+https://github.com/lmelon/homebridge-vaillant-vrc9xx.git",
         "type": "git"
     },
+    "publishConfig": {
+        "registry": "https://registry.npmjs.org"
+    },
     "main": "src/index.js",
     "scripts": {},
     "keywords": [
