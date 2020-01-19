@@ -79,7 +79,7 @@ Below if the configuration with default values
                     "device": "1234-56789-1011"
                 },
                 "rooms": {
-                    "disabled": false
+                    "disabled": false,
                     "veto_duration": 180
                 }
             }
