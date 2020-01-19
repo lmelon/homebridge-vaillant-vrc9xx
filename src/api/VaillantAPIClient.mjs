@@ -7,17 +7,24 @@ import EventEmitter from 'events'
 import { API_COMMANDS } from './VaillantAPICommands.mjs'
 import { HTTPClient } from './HttpClient.mjs'
 
+import fs from 'fs'
+
 const { Subject, defer } = rxjs
 const { tap, groupBy, mergeMap, distinctUntilChanged, auditTime, concatMap, delay } = operators
 
 const BASE_URL = 'https://smart.vaillant.com/mobile/api/v4'
 
 class VRC9xxAPI extends EventEmitter {
-    constructor(data, log) {
+    constructor(data, log, debug) {
         super()
 
         this.log = log ? log : console.log
         this.httpClient = new HTTPClient(BASE_URL, this.log)
+        this.debug = debug
+        if (this.debug.active) {
+            this.log(`Dumping queries to path ${this.debug.path}`)
+            fs.writeFileSync(this.debug.path + '/vaillant-query.log', '=======================================\n')
+        }
 
         this.config = {
             authData: data,
@@ -62,9 +69,29 @@ class VRC9xxAPI extends EventEmitter {
 
         try {
             const resp = await this.httpClient.execute(command)
+            if (this.debug.active) {
+                this.dumpQuery(command, resp)
+            }
+
             return resp.data ? resp.data : resp
         } catch (e) {
             return this.handleError(e, command)
+        }
+    }
+
+    dumpQuery(command, data) {
+        if (command.description === 'Login') {
+            // do not log login
+            return
+        }
+
+        try {
+            fs.appendFileSync(this.debug.path + '/vaillant-query.log', JSON.stringify(command, null, '  '))
+            fs.appendFileSync(this.debug.path + '/vaillant-query.log', '\n---------------------------------------\n')
+            fs.appendFileSync(this.debug.path + '/vaillant-query.log', JSON.stringify(data, null, '  '))
+            fs.appendFileSync(this.debug.path + '/vaillant-query.log', '\n=======================================\n')
+        } catch (err) {
+            //do nothing
         }
     }
 

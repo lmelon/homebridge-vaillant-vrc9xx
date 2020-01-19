@@ -8,14 +8,11 @@ export const VAILLANT_POLLER_EVENTS = {
 }
 
 class VaillantAPIPoller extends EventEmitter {
-    constructor(api, polling, log) {
+    constructor(api, config, log) {
         super()
 
-        this.polling = polling || 60
-        if (this.polling < 30) {
-            // minimum value
-            this.polling = 30
-        }
+        this.polling = config.api.polling
+        this.ignoreRooms = config.api.rooms.disabled
 
         this.log = log
         this.api = api
@@ -91,6 +88,11 @@ class VaillantAPIPoller extends EventEmitter {
 
         // check if room-by-room is available
         facility.rbr = facility.capabilities.filter(it => it === 'ROOM_BY_ROOM').length === 1
+
+        if (facility.rbr && this.ignoreRooms) {
+            this.log(`Facility ${serial} is reporting RbR but is disabled by config`)
+            facility.rbr = false
+        }
 
         if (!this.facilities[serial]) {
             this.facilities[serial] = {

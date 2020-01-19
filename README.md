@@ -71,6 +71,7 @@ Below if the configuration with default values
     {
       "platform": "VaillantVRC9xx",
       "api": {
+                "debug": false,
                 "polling": 60,
                 "user": {
                     "name": "username",
@@ -78,6 +79,7 @@ Below if the configuration with default values
                     "device": "1234-56789-1011"
                 },
                 "rooms": {
+                    "disabled": false
                     "veto_duration": 180
                 }
             }
@@ -88,10 +90,12 @@ Below if the configuration with default values
 
 | Attributes    | Usage                                                                                                                                                                                                                                                                                                                                           |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| debug         | If set to "true", it will create a dump file with all queries to the Vaillant API allowing to debug any issue. **DO NOT** activate this permanently as it will create a huge dump file over time. The path to this dump file will be printed in the logs. The filename is "vaillant-query.log". Your password will not be output in the dump.   |
 | name          | The username used to connect the multiMatic app. I recommand creating a dedicated user for homebridge so that the plugin will never mess-up with your access. This is easily done from within the multiMatic app.                                                                                                                               |
 | password      | The password of this user                                                                                                                                                                                                                                                                                                                       |
 | device        | A unique identifier used to identify the "device". Just select any random sequence of number.                                                                                                                                                                                                                                                   |
 | polling       | The polling interval (in seconds) the plugin uses to retrieve the state of the system. The communication between the cloud api and the VRC9xx module seems to occur every minute or so. So the default value is 60. The minimal value is 30 to avoid performing a Denial-of-Service (DoS) attack on the API servers                             |
+| disabled      | Disable the room-by-room functionnality in case the API incorrectly report it as available                                                                                                                                                                                                                                                      |
 | veto_duration | When room-by-room (ambiSENSE / VR-50 & VR-51) is used, this parameter defines, in minutes, the duration of "Quick Veto", i.e. changes to the scheduled temperature when the room is in AUTO mode. When done from the Vaillant app, the default is 3 hours / 180 mins, so this is also the default here. This parameter is global for all rooms. |
 
 ## How it works

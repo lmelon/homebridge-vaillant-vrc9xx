@@ -1,5 +1,12 @@
 # Release Notes
 
+## Version 0.5.1 - 2020/01/08
+
+**List of changes**
+
+-   Add a parameter to disable room by room (ambiSENSE) in case it is incorrectly reported as available.
+-   Add a parameter to dump all request to Vaillant API for remote debugging purpose.
+
 ## Version 0.5.0 - 2019/12/25
 
 **List of changes**

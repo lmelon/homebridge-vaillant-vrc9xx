@@ -22,7 +22,9 @@ const DEFAULT_CONFIG = {
     api: {
         polling: 60,
         user: {},
+        debug: false,
         rooms: {
+            disabled: false,
             veto_duration: 180,
         },
     },
@@ -52,10 +54,11 @@ class VaillantVRC9xxPlatform {
                 username: this.config.api.user.name,
                 password: this.config.api.user.password,
             },
-            log
+            log,
+            { active: this.config.api.debug, path: this.api.user.storagePath() }
         )
 
-        this.Poller = new VRC9xxAPIPoller(this.VaillantAPI, this.config.api.polling, log)
+        this.Poller = new VRC9xxAPIPoller(this.VaillantAPI, this.config, log)
         this.Poller.on(VAILLANT_POLLER_EVENTS.FACILITIES, this.facilitiesEvent.bind(this))
         this.Poller.on(VAILLANT_POLLER_EVENTS.FACILITIES_DONE, this.facilitiesDone.bind(this))
 
