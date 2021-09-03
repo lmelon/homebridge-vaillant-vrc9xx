@@ -72,7 +72,7 @@ Below if the configuration with default values
       "platform": "VaillantVRC9xx",
       "api": {
                 "debug": false,
-                "polling": 60,
+                "polling": 300,
                 "user": {
                     "name": "username",
                     "password": "password",
@@ -94,7 +94,7 @@ Below if the configuration with default values
 | name          | The username used to connect the multiMatic app. I recommand creating a dedicated user for homebridge so that the plugin will never mess-up with your access. This is easily done from within the multiMatic app.                                                                                                                               |
 | password      | The password of this user                                                                                                                                                                                                                                                                                                                       |
 | device        | A unique identifier used to identify the "device". Just select any random sequence of number.                                                                                                                                                                                                                                                   |
-| polling       | The polling interval (in seconds) the plugin uses to retrieve the state of the system. The communication between the cloud api and the VRC9xx module seems to occur every minute or so. So the default value is 60. The minimal value is 30 to avoid performing a Denial-of-Service (DoS) attack on the API servers                             |
+| polling       | The polling interval (in seconds) the plugin uses to retrieve the state of the system. The communication between the cloud api and the VRC9xx module seems to occur every 5 minutes or so. So the default value is 300. The minimal value is 30 to avoid performing a Denial-of-Service (DoS) attack on the API servers                             |
 | disabled      | Disable the room-by-room functionnality in case the API incorrectly report it as available                                                                                                                                                                                                                                                      |
 | veto_duration | When room-by-room (ambiSENSE / VR-50 & VR-51) is used, this parameter defines, in minutes, the duration of "Quick Veto", i.e. changes to the scheduled temperature when the room is in AUTO mode. When done from the Vaillant app, the default is 3 hours / 180 mins, so this is also the default here. This parameter is global for all rooms. |
 
