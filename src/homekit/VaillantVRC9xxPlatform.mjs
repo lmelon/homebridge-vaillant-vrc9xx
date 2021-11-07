@@ -20,7 +20,7 @@ export default homebridge => {
 const DEFAULT_CONFIG = {
     platform: 'VaillantVRC9xx',
     api: {
-        polling: 60,
+        polling: 300,
         user: {},
         debug: false,
         rooms: {

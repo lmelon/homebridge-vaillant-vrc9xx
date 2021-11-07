@@ -4,7 +4,7 @@ const NB_RETRY = 3
 
 export class HTTPClient {
     constructor(baseURL, log) {
-        this.cookieJar = new CookieJar('rw')
+        this.cookieJar = new CookieJar()
         this.baseURL = baseURL
         this.log = log
     }
@@ -20,7 +20,7 @@ export class HTTPClient {
         }
     }
 
-    async fetch(query) {
+    async request(query) {
         try {
             const response = await fetch(this.cookieJar, query.url, query.options)
             const body = await json(response)
@@ -58,7 +58,7 @@ export class HTTPClient {
 
         let retry = 0
         while (retry++ < NB_RETRY) {
-            const value = await this.fetch(query)
+            const value = await this.request(query)
 
             // not an error -> done
             if (!value.error) return value.body
