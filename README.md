@@ -1,4 +1,9 @@
-# homebridge-vaillant-vrc9xx
+> **Deprecation warning:**
+> This project and repo is now deprecated and will not be maintained anymore.
+> Vaillant has put in place some "protection" on their API to prevent this plugin to work correctly.
+> Feel free to fork and update it for your personal need if you judge it useful for you.
+
+# DEPRECATED - homebridge-vaillant-vrc9xx
 
 A plugin for [homebridge](https://github.com/nfarina/homebridge), which allows to control Vaillant heater equipped with the VRC900 or VRC920 internet module.
 
